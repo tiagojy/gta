@@ -22,7 +22,7 @@
   <link rel="shortcut icon" href="./story/favicon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
   <title>Missão Vibe Coding — Curso em Vídeo</title>
-  <link rel="stylesheet" href="./styles/main.css?v=42">
+  <link rel="stylesheet" href="./styles/main.css?v=43">
 </head>
 <body>
   <div id="game-shell">
@@ -97,7 +97,7 @@
       </div>
 
       <div id="controls-hint" class="hud-pill">
-        Setas/WASD: Mover · Espaço: Ação/Acelerar · Shift/X: Freio/Ré · I/Tab: Inventário · M: Mapa · Espaço+Shift: Sair
+        Setas/WASD: Mover · Espaço: Ação/Acelerar · Shift/X: Freio/Ré · I/Tab: Inventário · M: Mapa · Espaço+Shift: Sair · F: Atirar · R: Recarregar
       </div>
 
       <div id="touch-controls" class="hidden" aria-label="Controles virtuais">
@@ -125,6 +125,13 @@
             <svg class="touch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M7 7l5 5 5-5"/>
               <path d="M7 13l5 5 5-5"/>
+            </svg>
+          </button>
+          <button type="button" class="touch-btn touch-secondary-btn touch-fire" data-btn="fire" aria-label="Atirar" title="Atirar">
+            <svg class="touch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8"/>
+              <circle cx="12" cy="12" r="2.2" fill="currentColor"/>
+              <path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>
             </svg>
           </button>
           <button type="button" class="touch-btn touch-action touch-primary" data-btn="action" aria-label="Ação" title="Ação">
@@ -384,6 +391,6 @@
       });
     })();
   </script>
-  <script type="module" src="./src/main.js?v=78"></script>
+  <script type="module" src="./src/main.js?v=79"></script>
 </body>
 </html>

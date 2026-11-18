@@ -263,7 +263,7 @@ export class WebGLRenderer {
     this.#pushQuad(x - 4.5, y - 2, 9, 9, 0, 'disc', [0.22, 0.14, 0.08, 1]);
   }
 
-  renderFrame({ camera, cityMap, vehicles, boats = [], trashBins = [], pedestrians = [], player, skidMarks, bloodMarks = [], smokeParticles = [], explosions = [], worldCollectibles = [], objectivePoint, objectiveNpcPoint, completedNpcPoints = [], encounterLocations = null, emitNpcWaves = false, time }) {
+  renderFrame({ camera, cityMap, vehicles, boats = [], trashBins = [], pedestrians = [], player, skidMarks, bloodMarks = [], bullets = [], smokeParticles = [], explosions = [], worldCollectibles = [], objectivePoint, objectiveNpcPoint, completedNpcPoints = [], encounterLocations = null, emitNpcWaves = false, time }) {
     const gl = this.gl;
     this.quadCount = 0;
 
@@ -886,6 +886,15 @@ export class WebGLRenderer {
       }
 
       this.#pushQuad(player.x - 14 * pScale, player.y - 14 * pScale, 28 * pScale, 28 * pScale, player.angle, 'player', [1, 1, 1, pAlpha]);
+
+      // Pistola na mão direita + clarão do disparo
+      if (!ridingMoto && player.weapon && !player.isDead) {
+        drawLimb(16, 6, 11, 4, [0.1, 0.11, 0.14]);
+        drawLimb(11, 6, 5, 5, [0.92, 0.72, 0.52]);
+        if (player.weapon.flashTimer > 0) {
+          drawLimb(25, 6, 11, 11, [1, 0.92, 0.55]);
+        }
+      }
     }
 
     // Semáforos com luz sutil verde/vermelha emanando dos dois lados
@@ -922,6 +931,12 @@ export class WebGLRenderer {
         ? [p.color[0], p.color[1], p.color[2], p.alpha * fade]
         : [p.dark, p.dark, p.dark, p.alpha * fade];
       this.#pushQuad(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size, p.life * 2, 'circle', rgba);
+    }
+
+    // Projéteis (traço curto e brilhante na direção do voo)
+    for (const b of bullets) {
+      this.#pushQuad(b.x - 7, b.y - 1.5, 14, 3, b.angle, 'solid', [1, 0.78, 0.3, 0.55]);
+      this.#pushQuad(b.x - 4, b.y - 1, 8, 2, b.angle, 'solid', [1, 0.96, 0.75, 1]);
     }
 
     for (const ex of explosions) {

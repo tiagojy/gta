@@ -1074,7 +1074,7 @@ export class HudController {
     this.errorScreen.classList.remove('hidden');
   }
 
-  updateStatus({ locationCode, vehicle, isDrifting, objectiveCode, health = 100 }) {
+  updateStatus({ locationCode, vehicle, isDrifting, objectiveCode, health = 100, weaponLabel = null }) {
     this.locationCodeEl.textContent = locationCode || 'CIDADE';
     if (vehicle) {
       const kmh = Math.round(vehicle.speed * 0.25);
@@ -1087,7 +1087,7 @@ export class HudController {
       unitEl.textContent = ` km/h${driftTag}`;
       this.vehicleStatusEl.replaceChildren(valueEl, unitEl);
     } else {
-      this.vehicleStatusEl.textContent = 'A pé';
+      this.vehicleStatusEl.textContent = weaponLabel ? `A pé · ${weaponLabel}` : 'A pé';
     }
     this.objectiveHintEl.textContent = objectiveCode ? `Destino: ${objectiveCode}` : 'Exploração livre';
 

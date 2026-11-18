@@ -2,8 +2,8 @@ import { CityMap } from '../world/city-map.js?v=30';
 import { RoadPathfinder } from '../world/pathfinding.js';
 import { TrafficManager } from '../world/traffic-manager.js?v=24';
 import { BoatManager } from '../world/boat-manager.js?v=17';
-import { InputManager } from '../input/input-manager.js?v=20';
-import { WebGLRenderer } from '../render/webgl-renderer.js?v=29';
+import { InputManager } from '../input/input-manager.js?v=21';
+import { WebGLRenderer } from '../render/webgl-renderer.js?v=30';
 import { isInWater, resolveCircleStaticObstacle, resolveEntityCollisions, resolveVehiclePairCollision } from '../physics/collision.js?v=11';
 import {
   applyPedestrianDamage,
@@ -25,6 +25,14 @@ import {
 } from '../physics/vehicle-physics.js?v=18';
 import { Minimap } from '../ui/minimap.js?v=27';
 import { Inventory } from './inventory.js?v=20';
+import {
+  createWeaponState,
+  isReloading,
+  startReload,
+  tryFire,
+  updateBullets,
+  updateWeaponState
+} from '../combat/weapons.js?v=1';
 import { createSaveSnapshot, saveGameState } from './save-state.js?v=2';
 import { getPendingMissionAssetUrls, preloadMissionAssets } from '../story/story-loader.js';
 
@@ -84,6 +92,7 @@ export class Engine {
     this.lastVehicleChunkKey = null;
     this.skidMarks = [];
     this.bloodMarks = [];
+    this.bullets = [];
     this.smokeParticles = [];
     this.explosions = [];
     this.routePoints = [];
@@ -589,6 +598,7 @@ export class Engine {
     this.boatManager = new BoatManager(this.cityMap);
     this.skidMarks = [];
     this.bloodMarks = [];
+    this.bullets = [];
     this.smokeParticles = [];
     this.explosions = [];
     this.pendingGameOver = null;
@@ -604,6 +614,7 @@ export class Engine {
     this.player.speed = 0;
     this.player.walkPhase = 0;
     this.player.health = 100;
+    this.player.weapon = createWeaponState('pistol', { reserve: 36 });
     this.hudDisplayHealth = 100;
     this.wasInsideHospital = false;
     this.collectibleFullToastCooldown = 0;
@@ -1389,6 +1400,7 @@ export class Engine {
         } else {
           this.player.walkPhase = 0;
         }
+        this.#handlePlayerWeaponInput(input);
         if (input.actionJustPressed && !this.#isNearInteriorStoryNpc()) {
           const encounterNpc = this.#findNearbyEncounterNpc();
           if (encounterNpc && this.cutscene) {
@@ -1658,6 +1670,7 @@ export class Engine {
 
     this.#updateParticles(dt);
     this.#updateExplosions(dt);
+    this.#updateCombat(dt);
     this.#updateTrashBins(dt, nearbyVehicles);
 
     if ((this.player.vehicleHitCooldown || 0) > 0) {
@@ -1984,8 +1997,91 @@ export class Engine {
       vehicle: currentVehicle,
       isDrifting: Boolean(currentVehicle?.isDrifting),
       objectiveCode: objectiveHint,
-      health: this.hudDisplayHealth
+      health: this.hudDisplayHealth,
+      weaponLabel: currentVehicle ? null : this.#getWeaponHudLabel()
     });
+  }
+
+  #getWeaponHudLabel() {
+    const weapon = this.player.weapon;
+    if (!weapon) return null;
+    if (isReloading(weapon)) return 'Recarregando...';
+    return `Pistola ${weapon.ammoInMag}/${weapon.ammoReserve}`;
+  }
+
+  #handlePlayerWeaponInput(input) {
+    const weapon = this.player.weapon;
+    if (!weapon || this.player.isDead) return;
+
+    if (input.reloadJustPressed) {
+      startReload(weapon);
+    }
+    if (input.firePressed) {
+      const bullet = tryFire(weapon, this.player.x, this.player.y, this.player.angle);
+      if (bullet) {
+        this.bullets.push(bullet);
+      }
+    }
+  }
+
+  #updateCombat(dt) {
+    const weapon = this.player.weapon;
+    if (weapon) {
+      updateWeaponState(weapon, dt);
+    }
+    if (this.bullets.length === 0) return;
+
+    const peds = this.trafficManager?.pedestrians || [];
+    const colliders = this.cityMap.getCollidersAround(this.player.x, this.player.y, 640);
+    const events = updateBullets(this.bullets, dt, {
+      colliders,
+      pedestrians: peds,
+      vehicleAt: (x, y) => {
+        for (const v of this.vehicles) {
+          if (v.destroyed || v.id === this.player.inVehicleId) continue;
+          if (Math.abs(v.x - x) > 48 || Math.abs(v.y - y) > 48) continue;
+          if (isTouchingVehicle(x, y, 2, v, 0)) return v;
+        }
+        return null;
+      }
+    });
+
+    for (const ev of events) {
+      if (ev.type === 'pedestrian') {
+        const ped = ev.target;
+        ped.hitCooldown = 0; // cada tiro conta, mesmo em sequência rápida
+        const hit = applyPedestrianDamage(ped, ev.bullet.damage, ev.bullet.dirX * 140, ev.bullet.dirY * 140);
+        if (hit.damaged) {
+          this.bloodMarks.push({
+            x: ped.x,
+            y: ped.y,
+            size: hit.downed ? 14 : 8,
+            angle: ev.bullet.angle,
+            alpha: hit.downed ? 0.8 : 0.6
+          });
+        }
+      } else {
+        this.#spawnBulletSparks(ev.x, ev.y, ev.bullet.angle);
+      }
+    }
+  }
+
+  #spawnBulletSparks(x, y, bulletAngle) {
+    for (let i = 0; i < 4; i++) {
+      const spread = bulletAngle + Math.PI + (Math.random() - 0.5) * 1.6;
+      const speed = 60 + Math.random() * 90;
+      this.smokeParticles.push({
+        x,
+        y,
+        vx: Math.cos(spread) * speed,
+        vy: Math.sin(spread) * speed,
+        life: 0,
+        maxLife: 0.16 + Math.random() * 0.1,
+        size: 3,
+        alpha: 0.95,
+        color: [1, 0.85, 0.45]
+      });
+    }
   }
 
   #updateParticles(dt) {
@@ -2178,6 +2274,7 @@ export class Engine {
       player: this.player,
       skidMarks: this.skidMarks,
       bloodMarks: this.bloodMarks,
+      bullets: this.bullets,
       smokeParticles: this.smokeParticles,
       explosions: this.explosions,
       worldCollectibles: this.worldCollectibles,

@@ -23,6 +23,7 @@ export class InputManager {
     this.prevPause = false;
     this.prevCombo = false;
     this.prevExit = false;
+    this.prevReload = false;
     this.secondaryHeldTime = 0;
     this.exitCooldown = 0;
 
@@ -75,6 +76,16 @@ export class InputManager {
     }
     this.drivingMode = nextMode;
     this.#resetAnalog();
+
+    if (nextMode) {
+      this.touchButtons.delete('fire');
+      this.pointerBindings.forEach((binding, pointerId) => {
+        if (binding.kind === 'btn' && binding.value === 'fire') {
+          binding.el?.classList?.remove('active');
+          this.pointerBindings.delete(pointerId);
+        }
+      });
+    }
 
     if (!nextMode) {
       this.touchButtons.delete('secondary');
@@ -267,7 +278,9 @@ export class InputManager {
       const zoomIn = Boolean(gp.buttons[5]?.pressed || gp.buttons[7]?.pressed || rightStickY < -0.25);
       const zoomOut = Boolean(gp.buttons[4]?.pressed || gp.buttons[6]?.pressed || rightStickY > 0.25);
       const resetZoom = Boolean(gp.buttons[3]?.pressed || gp.buttons[11]?.pressed);
-      return { moveX, moveY, action, secondary, exit, pause, mapToggle, prevPage, nextPage, zoomIn, zoomOut, resetZoom };
+      const fire = Boolean(gp.buttons[5]?.pressed);
+      const reload = Boolean(gp.buttons[4]?.pressed);
+      return { moveX, moveY, action, secondary, exit, pause, mapToggle, prevPage, nextPage, zoomIn, zoomOut, resetZoom, fire, reload };
     }
     return {
       moveX: 0,
@@ -282,6 +295,8 @@ export class InputManager {
       zoomIn: false,
       zoomOut: false,
       resetZoom: false,
+      fire: false,
+      reload: false,
     };
   }
 
@@ -313,6 +328,10 @@ export class InputManager {
       this.touchButtons.has('secondary');
 
     const gp = this.#readGamepad();
+    const firePressed = Boolean(this.keys.has('KeyF') || this.touchButtons.has('fire') || gp.fire);
+    const reloadPressed = Boolean(this.keys.has('KeyR') || gp.reload);
+    const reloadJustPressed = reloadPressed && !this.prevReload;
+    this.prevReload = reloadPressed;
     if (Math.abs(gp.moveX) > 0) moveX = gp.moveX;
     if (Math.abs(gp.moveY) > 0) moveY = gp.moveY;
     actionPressed = actionPressed || gp.action;
@@ -398,6 +417,8 @@ export class InputManager {
       exitJustPressed,
       pauseJustPressed,
       mapToggleJustPressed,
+      firePressed,
+      reloadJustPressed,
       secondaryHeldTime: this.secondaryHeldTime,
       comboExitJustPressed,
       canTriggerHoldExit: this.exitCooldown === 0 && this.secondaryHeldTime >= 0.6

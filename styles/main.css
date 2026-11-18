@@ -492,6 +492,20 @@ body {
   border-color: #93c5fd;
 }
 
+.touch-fire {
+  border-color: rgba(251, 146, 60, 0.6);
+  background: rgba(124, 45, 18, 0.36);
+}
+
+.touch-fire.active {
+  background: rgba(249, 115, 22, 0.55);
+  border-color: #fb923c;
+}
+
+.driving-mode .touch-fire {
+  display: none;
+}
+
 .touch-action {
   width: 84px;
   height: 84px;

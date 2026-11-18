@@ -1,5 +1,5 @@
-import { Engine } from './core/engine.js?v=57';
-import { HudController } from './ui/hud-controller.js?v=41';
+import { Engine } from './core/engine.js?v=58';
+import { HudController } from './ui/hud-controller.js?v=42';
 import { CutsceneController } from './ui/cutscene-controller.js?v=15';
 import { PauseMenuController } from './ui/pause-menu.js?v=6';
 import { ConfirmDialogController } from './ui/confirm-dialog.js?v=2';
