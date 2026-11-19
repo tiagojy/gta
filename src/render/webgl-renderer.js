@@ -263,7 +263,7 @@ export class WebGLRenderer {
     this.#pushQuad(x - 4.5, y - 2, 9, 9, 0, 'disc', [0.22, 0.14, 0.08, 1]);
   }
 
-  renderFrame({ camera, cityMap, vehicles, boats = [], trashBins = [], pedestrians = [], player, skidMarks, bloodMarks = [], bullets = [], smokeParticles = [], explosions = [], worldCollectibles = [], objectivePoint, objectiveNpcPoint, completedNpcPoints = [], encounterLocations = null, emitNpcWaves = false, time }) {
+  renderFrame({ camera, cityMap, vehicles, boats = [], trashBins = [], pedestrians = [], player, skidMarks, bloodMarks = [], bullets = [], lockTarget = null, smokeParticles = [], explosions = [], worldCollectibles = [], objectivePoint, objectiveNpcPoint, completedNpcPoints = [], encounterLocations = null, emitNpcWaves = false, time }) {
     const gl = this.gl;
     this.quadCount = 0;
 
@@ -931,6 +931,17 @@ export class WebGLRenderer {
         ? [p.color[0], p.color[1], p.color[2], p.alpha * fade]
         : [p.dark, p.dark, p.dark, p.alpha * fade];
       this.#pushQuad(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size, p.life * 2, 'circle', rgba);
+    }
+
+    // Marcador do alvo fixado: 4 colchetes vermelhos girando em volta do pedestre
+    if (lockTarget) {
+      const ringR = 19 + Math.sin(time * 6) * 1.5;
+      for (let i = 0; i < 4; i++) {
+        const a = time * 1.6 + i * (Math.PI / 2);
+        const mx = lockTarget.x + Math.cos(a) * ringR;
+        const my = lockTarget.y + Math.sin(a) * ringR;
+        this.#pushQuad(mx - 5, my - 1.5, 10, 3, a + Math.PI / 2, 'solid', [1, 0.18, 0.18, 0.95]);
+      }
     }
 
     // Projéteis (traço curto e brilhante na direção do voo)

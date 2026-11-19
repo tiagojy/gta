@@ -2,8 +2,8 @@ import { CityMap } from '../world/city-map.js?v=30';
 import { RoadPathfinder } from '../world/pathfinding.js';
 import { TrafficManager } from '../world/traffic-manager.js?v=24';
 import { BoatManager } from '../world/boat-manager.js?v=17';
-import { InputManager } from '../input/input-manager.js?v=21';
-import { WebGLRenderer } from '../render/webgl-renderer.js?v=30';
+import { InputManager } from '../input/input-manager.js?v=22';
+import { WebGLRenderer } from '../render/webgl-renderer.js?v=31';
 import { isInWater, resolveCircleStaticObstacle, resolveEntityCollisions, resolveVehiclePairCollision } from '../physics/collision.js?v=11';
 import {
   applyPedestrianDamage,
@@ -26,14 +26,23 @@ import {
 import { Minimap } from '../ui/minimap.js?v=27';
 import { Inventory } from './inventory.js?v=20';
 import {
+  addAmmo,
   createWeaponState,
   isReloading,
+  restoreWeaponState,
   startReload,
   tryFire,
   updateBullets,
   updateWeaponState
-} from '../combat/weapons.js?v=1';
-import { createSaveSnapshot, saveGameState } from './save-state.js?v=2';
+} from '../combat/weapons.js?v=2';
+
+const DEFAULT_MISSION_REWARD = 100;
+const LOCK_PICK_RADIUS = 24;
+const LOCK_MAX_RANGE = 600;
+const LOCK_CYCLE_RANGE = 520;
+import { createSaveSnapshot, saveGameState } from './save-state.js?v=3';
+import { applyCheat } from './cheats.js?v=1';
+import { CheatConsole } from '../ui/cheat-console.js?v=1';
 import { getPendingMissionAssetUrls, preloadMissionAssets } from '../story/story-loader.js';
 
 const PEDESTRIAN_CHAT_LINES = [
@@ -127,6 +136,15 @@ export class Engine {
     };
 
     this.camera = { x: 0, y: 0 };
+    this.money = 0;
+    this.weaponState = null;
+    this.lockedTarget = null;
+    this.cheatConsole = new CheatConsole({
+      container: document.getElementById('game-shell'),
+      onSubmit: (value) => this.#runCheat(value),
+      onOpen: () => { this.paused = true; },
+      onClose: () => { this.paused = false; }
+    });
     this.hud.onRestartClick(() => {
       if (this.storyPackage && !this.freeRoamMode) {
         this.startMission(this.currentMissionIndex, { skipIntro: true });
@@ -168,6 +186,11 @@ export class Engine {
         return;
       }
       if (this.cutscene?.active) return;
+      if (e.code === 'F2') {
+        e.preventDefault();
+        this.#toggleCheatConsole();
+        return;
+      }
       if (e.key === 'i' || e.key === 'I' || e.key === 'Tab') {
         e.preventDefault();
         if (this.hud.isExpandedMapOpen()) this.closeExpandedMap();
@@ -232,6 +255,7 @@ export class Engine {
 
   stop() {
     this.#persistSaveState();
+    this.cheatConsole?.destroy();
     this.hud.clearNpcSpeechBubbles?.();
     this.running = false;
     if (this.#onKeyDown) window.removeEventListener('keydown', this.#onKeyDown);
@@ -251,6 +275,10 @@ export class Engine {
       inventorySlots: this.inventory.getSlots(),
       collectedExtraIds: [...this.collectedExtraIds],
       completedNpcPoints: this.completedNpcPoints,
+      money: this.money,
+      weapon: this.weaponState
+        ? { id: this.weaponState.id, ammoInMag: this.weaponState.ammoInMag, ammoReserve: this.weaponState.ammoReserve }
+        : null,
       player: {
         x: this.player.x,
         y: this.player.y,
@@ -344,6 +372,10 @@ export class Engine {
       : (this.itemPickedUp || !needsPickup ? mission.targetLocation : mission.pickupLocation);
 
     this.resetMatch(mission.startLocation, initialObjective);
+
+    this.money = Math.max(0, Math.floor(Number(savedState.money) || 0));
+    this.weaponState = restoreWeaponState(savedState.weapon);
+    this.player.weapon = this.weaponState;
 
     this.inventory.clear();
     for (const slot of savedState.inventorySlots || []) {
@@ -614,7 +646,9 @@ export class Engine {
     this.player.speed = 0;
     this.player.walkPhase = 0;
     this.player.health = 100;
-    this.player.weapon = createWeaponState('pistol', { reserve: 36 });
+    if (!this.weaponState) this.weaponState = createWeaponState('pistol', { reserve: 36 });
+    this.player.weapon = this.weaponState;
+    this.lockedTarget = null;
     this.hudDisplayHealth = 100;
     this.wasInsideHospital = false;
     this.collectibleFullToastCooldown = 0;
@@ -905,6 +939,8 @@ export class Engine {
       }
       this.setObjective(null);
       const hasNext = this.currentMissionIndex + 1 < this.storyPackage.missions.length;
+      const reward = Number.isFinite(mission.reward) ? mission.reward : DEFAULT_MISSION_REWARD;
+      this.addMoney(reward);
       this.paused = true;
       this.hud.showMissionComplete(mission.title, hasNext, () => {
         this.paused = false;
@@ -915,7 +951,7 @@ export class Engine {
           this.setObjective(null);
           this.#persistSaveState();
         }
-      });
+      }, reward);
     };
 
     const openDeliveryModal = (expectedId, onSuccess, onCancel) => {
@@ -1400,6 +1436,7 @@ export class Engine {
         } else {
           this.player.walkPhase = 0;
         }
+        this.#updatePlayerAim(input);
         this.#handlePlayerWeaponInput(input);
         if (input.actionJustPressed && !this.#isNearInteriorStoryNpc()) {
           const encounterNpc = this.#findNearbyEncounterNpc();
@@ -1998,8 +2035,103 @@ export class Engine {
       isDrifting: Boolean(currentVehicle?.isDrifting),
       objectiveCode: objectiveHint,
       health: this.hudDisplayHealth,
-      weaponLabel: currentVehicle ? null : this.#getWeaponHudLabel()
+      weaponLabel: currentVehicle ? null : this.#getWeaponHudLabel(),
+      money: this.money
     });
+  }
+
+  addMoney(amount) {
+    const value = Math.floor(Number(amount));
+    if (!Number.isFinite(value)) return;
+    this.money = Math.max(0, this.money + value);
+  }
+
+  #runCheat(value) {
+    const result = applyCheat(value, {
+      addMoney: (n) => this.addMoney(n),
+      addAmmo: (n) => { if (this.weaponState) addAmmo(this.weaponState, n); },
+      healPlayer: () => { this.player.health = 100; }
+    });
+    if (result.ok) this.#persistSaveState();
+    return result;
+  }
+
+  #toggleCheatConsole() {
+    if (!this.cheatConsole) return;
+    if (this.cheatConsole.isOpen) {
+      this.cheatConsole.close();
+      return;
+    }
+    if (this.paused || this.inventoryController?.isOpen || this.hud.isExpandedMapOpen() || this.pauseMenu?.isOpen) return;
+    this.cheatConsole.open();
+  }
+
+  // Converte um ponto da tela (coordenadas do mouse) em ponto do mundo, pela mesma matriz do renderer.
+  #screenToWorld(clientX, clientY) {
+    const zoom = this.renderer?.zoom || 1;
+    const viewW = this.renderer?.viewWidth || window.innerWidth || 800;
+    const viewH = this.renderer?.viewHeight || window.innerHeight || 600;
+    const rect = this.canvas?.getBoundingClientRect?.() || { left: 0, top: 0, width: viewW, height: viewH };
+    const sx = (clientX - rect.left) * (viewW / (rect.width || viewW));
+    const sy = (clientY - rect.top) * (viewH / (rect.height || viewH));
+    return {
+      x: this.camera.x + (sx - viewW * 0.5) / zoom,
+      y: this.camera.y + (sy - viewH * 0.5) / zoom
+    };
+  }
+
+  #isTargetable(ped) {
+    return Boolean(ped) && ped.state !== 'downed' && !ped.isDead && !ped.knockedDown && !(ped.health <= 0);
+  }
+
+  #pedestrianNear(peds, x, y, pickRadius) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const ped of peds) {
+      if (!this.#isTargetable(ped)) continue;
+      const d = Math.hypot(ped.x - x, ped.y - y);
+      if (d <= pickRadius + (ped.radius || 10) && d < bestDist) {
+        best = ped;
+        bestDist = d;
+      }
+    }
+    return best;
+  }
+
+  #nextLockTarget(peds) {
+    const candidates = peds
+      .filter((ped) => this.#isTargetable(ped) && Math.hypot(ped.x - this.player.x, ped.y - this.player.y) <= LOCK_CYCLE_RANGE)
+      .sort((a, b) => Math.hypot(a.x - this.player.x, a.y - this.player.y) - Math.hypot(b.x - this.player.x, b.y - this.player.y));
+    if (candidates.length === 0) return null;
+    const currentIdx = candidates.indexOf(this.lockedTarget);
+    return candidates[(currentIdx + 1) % candidates.length];
+  }
+
+  // Define para onde o jogador olha/atira: alvo fixado > mouse > direção do movimento (padrão).
+  #updatePlayerAim(input) {
+    const peds = this.trafficManager?.pedestrians || [];
+
+    if (input.clearLockJustPressed) this.lockedTarget = null;
+    if (input.lockNearestJustPressed) this.lockedTarget = this.#nextLockTarget(peds);
+    if (input.lockClick) {
+      const w = this.#screenToWorld(input.lockClick.clientX, input.lockClick.clientY);
+      this.lockedTarget = this.#pedestrianNear(peds, w.x, w.y, LOCK_PICK_RADIUS);
+    }
+
+    const target = this.lockedTarget;
+    if (target) {
+      const tooFar = Math.hypot(target.x - this.player.x, target.y - this.player.y) > LOCK_MAX_RANGE;
+      if (!peds.includes(target) || !this.#isTargetable(target) || tooFar) {
+        this.lockedTarget = null;
+      }
+    }
+
+    if (this.lockedTarget) {
+      this.player.angle = Math.atan2(this.lockedTarget.y - this.player.y, this.lockedTarget.x - this.player.x);
+    } else if (input.mouseAim?.active) {
+      const w = this.#screenToWorld(input.mouseAim.clientX, input.mouseAim.clientY);
+      this.player.angle = Math.atan2(w.y - this.player.y, w.x - this.player.x);
+    }
   }
 
   #getWeaponHudLabel() {
@@ -2025,6 +2157,7 @@ export class Engine {
   }
 
   #updateCombat(dt) {
+    if (this.player.inVehicleId) this.lockedTarget = null;
     const weapon = this.player.weapon;
     if (weapon) {
       updateWeaponState(weapon, dt);
@@ -2275,6 +2408,7 @@ export class Engine {
       skidMarks: this.skidMarks,
       bloodMarks: this.bloodMarks,
       bullets: this.bullets,
+      lockTarget: this.lockedTarget,
       smokeParticles: this.smokeParticles,
       explosions: this.explosions,
       worldCollectibles: this.worldCollectibles,

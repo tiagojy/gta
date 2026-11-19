@@ -38,6 +38,20 @@ export function createWeaponState(weaponId = 'pistol', { reserve = 36 } = {}) {
   };
 }
 
+// Recria o estado da arma a partir de um save (dados antigos, ausentes ou inválidos viram a pistola padrão).
+export function restoreWeaponState(saved, fallbackReserve = 36) {
+  if (!saved || typeof saved !== 'object' || !WEAPONS[saved.id]) {
+    return createWeaponState('pistol', { reserve: fallbackReserve });
+  }
+  const def = WEAPONS[saved.id];
+  const state = createWeaponState(def.id, { reserve: 0 });
+  const mag = Math.floor(Number(saved.ammoInMag));
+  const reserve = Math.floor(Number(saved.ammoReserve));
+  state.ammoInMag = Number.isFinite(mag) ? Math.max(0, Math.min(def.magSize, mag)) : def.magSize;
+  state.ammoReserve = Number.isFinite(reserve) ? Math.max(0, reserve) : fallbackReserve;
+  return state;
+}
+
 export function isReloading(state) {
   return state.reloadTimer > 0;
 }

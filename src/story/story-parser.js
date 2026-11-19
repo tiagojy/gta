@@ -389,6 +389,9 @@ export function parseMissionMarkdown(rawText, fileName = 'mission.md', cityMap =
     pickupObjective: String(meta.pickup_objective || '').trim(),
     targetLocation: meta.target,
     objective: meta.objective || `Vá até ${meta.target}`,
+    reward: (meta.reward !== undefined && String(meta.reward).trim() !== '' && Number.isFinite(Number(meta.reward)) && Number(meta.reward) >= 0)
+      ? Math.floor(Number(meta.reward))
+      : null,
     giveItem: String(meta.give_item || '').trim(),
     requireItem: String(meta.require_item || '').trim(),
     deliveryPrompt: String(meta.delivery_prompt || '').trim(),

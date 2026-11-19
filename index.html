@@ -22,7 +22,7 @@
   <link rel="shortcut icon" href="./story/favicon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
   <title>Missão Vibe Coding — Curso em Vídeo</title>
-  <link rel="stylesheet" href="./styles/main.css?v=43">
+  <link rel="stylesheet" href="./styles/main.css?v=44">
 </head>
 <body>
   <div id="game-shell">
@@ -37,6 +37,9 @@
         <div id="top-bar">
           <div id="vehicle-badge" class="hud-pill">
             <span id="vehicle-status">A pé</span>
+          </div>
+          <div id="money-badge" class="hud-pill" title="Dinheiro">
+            <span id="money-value">R$ 0</span>
           </div>
           <div id="health-badge" class="hud-pill hud-health-stack">
             <div class="hud-health-row" title="Vida do personagem">
@@ -97,7 +100,7 @@
       </div>
 
       <div id="controls-hint" class="hud-pill">
-        Setas/WASD: Mover · Espaço: Ação/Acelerar · Shift/X: Freio/Ré · I/Tab: Inventário · M: Mapa · Espaço+Shift: Sair · F: Atirar · R: Recarregar
+        Setas/WASD: Mover · Espaço: Ação/Acelerar · Shift/X: Freio/Ré · I/Tab: Inventário · M: Mapa · Espaço+Shift: Sair · Mouse: Mirar/Atirar · F: Atirar · R: Recarregar · G: Fixar alvo · F2: Cheats
       </div>
 
       <div id="touch-controls" class="hidden" aria-label="Controles virtuais">
@@ -391,6 +394,6 @@
       });
     })();
   </script>
-  <script type="module" src="./src/main.js?v=79"></script>
+  <script type="module" src="./src/main.js?v=80"></script>
 </body>
 </html>

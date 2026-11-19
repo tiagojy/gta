@@ -1,3 +1,6 @@
+// Depois de parar de mexer o mouse, o personagem volta a olhar para onde anda após este tempo.
+const MOUSE_AIM_ACTIVE_MS = 4000;
+
 export class InputManager {
   constructor(touchContainer = null) {
     this.keys = new Set();
@@ -24,10 +27,15 @@ export class InputManager {
     this.prevCombo = false;
     this.prevExit = false;
     this.prevReload = false;
+    this.prevLockKey = false;
+    this.mouse = { clientX: 0, clientY: 0, lastMoveAt: -Infinity, down: false };
+    this.pendingClick = null;
+    this.pendingClearLock = false;
     this.secondaryHeldTime = 0;
     this.exitCooldown = 0;
 
     this.#bindKeyboard();
+    this.#bindMouse();
     if (this.touchContainer) {
       this.#bindTouch();
       this.#updateTouchVisibility();
@@ -48,10 +56,51 @@ export class InputManager {
 
     window.addEventListener('blur', () => {
       this.keys.clear();
+      this.mouse.down = false;
       this.touchDirs.clear();
       this.touchButtons.clear();
       this.pointerBindings.clear();
       this.#resetAnalog();
+    });
+  }
+
+  // Mouse: mira, clique para atirar e fixar alvo. Só conta o ponteiro do tipo "mouse"
+  // (toques na tela do celular continuam usando os botões virtuais).
+  #bindMouse() {
+    const isUiTarget = (t) => Boolean(
+      t?.closest?.('button, a, input, select, textarea, [role="dialog"], .hud-pill, .modal')
+    );
+
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      this.mouse.clientX = e.clientX;
+      this.mouse.clientY = e.clientY;
+      this.mouse.lastMoveAt = performance.now();
+    });
+
+    window.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || isUiTarget(e.target)) return;
+      this.mouse.clientX = e.clientX;
+      this.mouse.clientY = e.clientY;
+      this.mouse.lastMoveAt = performance.now();
+      if (e.button === 0) {
+        this.mouse.down = true;
+        this.pendingClick = { clientX: e.clientX, clientY: e.clientY };
+      } else if (e.button === 2) {
+        this.pendingClearLock = true;
+      }
+    });
+
+    const release = (e) => {
+      if (e.pointerType === 'mouse' && (e.button === 0 || e.type === 'pointercancel')) {
+        this.mouse.down = false;
+      }
+    };
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
+
+    window.addEventListener('contextmenu', (e) => {
+      if (!isUiTarget(e.target)) e.preventDefault();
     });
   }
 
@@ -328,10 +377,22 @@ export class InputManager {
       this.touchButtons.has('secondary');
 
     const gp = this.#readGamepad();
-    const firePressed = Boolean(this.keys.has('KeyF') || this.touchButtons.has('fire') || gp.fire);
+    const firePressed = Boolean(this.keys.has('KeyF') || this.touchButtons.has('fire') || gp.fire || this.mouse.down);
     const reloadPressed = Boolean(this.keys.has('KeyR') || gp.reload);
     const reloadJustPressed = reloadPressed && !this.prevReload;
     this.prevReload = reloadPressed;
+    const lockKeyHeld = this.keys.has('KeyG');
+    const lockNearestJustPressed = lockKeyHeld && !this.prevLockKey;
+    this.prevLockKey = lockKeyHeld;
+    const lockClick = this.pendingClick;
+    this.pendingClick = null;
+    const clearLockJustPressed = this.pendingClearLock;
+    this.pendingClearLock = false;
+    const mouseAim = {
+      active: this.mouse.down || (performance.now() - this.mouse.lastMoveAt) < MOUSE_AIM_ACTIVE_MS,
+      clientX: this.mouse.clientX,
+      clientY: this.mouse.clientY
+    };
     if (Math.abs(gp.moveX) > 0) moveX = gp.moveX;
     if (Math.abs(gp.moveY) > 0) moveY = gp.moveY;
     actionPressed = actionPressed || gp.action;
@@ -419,6 +480,10 @@ export class InputManager {
       mapToggleJustPressed,
       firePressed,
       reloadJustPressed,
+      mouseAim,
+      lockClick,
+      clearLockJustPressed,
+      lockNearestJustPressed,
       secondaryHeldTime: this.secondaryHeldTime,
       comboExitJustPressed,
       canTriggerHoldExit: this.exitCooldown === 0 && this.secondaryHeldTime >= 0.6

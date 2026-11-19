@@ -8,7 +8,7 @@ import {
   replaceLocationCodesWithNames,
   validateAssetPath,
   StoryParseError,
-} from './story-parser.js?v=17';
+} from './story-parser.js?v=18';
 
 async function fetchText(url, label, options = {}) {
   const { forceReload = false, signal = null } = options;

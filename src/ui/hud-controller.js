@@ -46,6 +46,7 @@ export class HudController {
 
     this.locationCodeEl = document.getElementById('location-code');
     this.vehicleStatusEl = document.getElementById('vehicle-status');
+    this.moneyEl = document.getElementById('money-value');
     this.objectiveHintEl = document.getElementById('objective-hint');
     this.healthFillEl = document.getElementById('health-fill');
     this.healthValueEl = document.getElementById('health-value');
@@ -284,11 +285,14 @@ export class HudController {
     this.setStartSelection(0);
   }
 
-  showMissionComplete(missionTitle, hasNextMission, onContinue) {
+  showMissionComplete(missionTitle, hasNextMission, onContinue, reward = 0) {
     this.missionCompleteTitleEl.textContent = hasNextMission ? 'MISSÃO CONCLUÍDA' : 'HISTÓRIA CONCLUÍDA';
     this.missionCompleteSubtitleEl.textContent = hasNextMission
       ? `${missionTitle} finalizada. Prepare-se para a próxima missão.`
       : `${missionTitle} finalizada! Todas as missões foram concluídas. Modo exploração livre ativado.`;
+    if (reward > 0) {
+      this.missionCompleteSubtitleEl.textContent += ` Recompensa: R$ ${Math.floor(reward).toLocaleString('pt-BR')}.`;
+    }
     this.missionCompleteBtn.textContent = hasNextMission ? 'Próxima Missão' : 'Explorar Livremente';
     this.missionCompleteHandler = onContinue;
     this.missionCompleteScreen.classList.remove('hidden');
@@ -1074,7 +1078,11 @@ export class HudController {
     this.errorScreen.classList.remove('hidden');
   }
 
-  updateStatus({ locationCode, vehicle, isDrifting, objectiveCode, health = 100, weaponLabel = null }) {
+  updateStatus({ locationCode, vehicle, isDrifting, objectiveCode, health = 100, weaponLabel = null, money = null }) {
+    if (this.moneyEl && money !== null) {
+      const label = `R$ ${Math.max(0, Math.floor(money)).toLocaleString('pt-BR')}`;
+      if (this.moneyEl.textContent !== label) this.moneyEl.textContent = label;
+    }
     this.locationCodeEl.textContent = locationCode || 'CIDADE';
     if (vehicle) {
       const kmh = Math.round(vehicle.speed * 0.25);
