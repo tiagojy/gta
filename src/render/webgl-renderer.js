@@ -263,7 +263,7 @@ export class WebGLRenderer {
     this.#pushQuad(x - 4.5, y - 2, 9, 9, 0, 'disc', [0.22, 0.14, 0.08, 1]);
   }
 
-  renderFrame({ camera, cityMap, vehicles, boats = [], trashBins = [], pedestrians = [], player, skidMarks, bloodMarks = [], bullets = [], lockTarget = null, smokeParticles = [], explosions = [], worldCollectibles = [], objectivePoint, objectiveNpcPoint, completedNpcPoints = [], encounterLocations = null, emitNpcWaves = false, time }) {
+  renderFrame({ camera, cityMap, vehicles, boats = [], trashBins = [], pedestrians = [], player, skidMarks, bloodMarks = [], cashDrops = [], bullets = [], lockTarget = null, smokeParticles = [], explosions = [], worldCollectibles = [], objectivePoint, objectiveNpcPoint, completedNpcPoints = [], encounterLocations = null, emitNpcWaves = false, time }) {
     const gl = this.gl;
     this.quadCount = 0;
 
@@ -404,6 +404,17 @@ export class WebGLRenderer {
       const len = mark.length || mark.size || 8;
       const wid = mark.width || mark.size || 8;
       this.#pushQuad(mark.x - len * 0.5, mark.y - wid * 0.5, len, wid, mark.angle || 0, 'solid', [0.58, 0.04, 0.05, mark.alpha]);
+    }
+
+    // Dinheiro solto por NPCs mortos (nota verde que pulsa levemente)
+    for (const drop of cashDrops) {
+      if (drop.x < minX || drop.x > maxX || drop.y < minY || drop.y > maxY) continue;
+      const pulse = 1 + 0.12 * Math.sin((time || 0) * 5 + drop.x * 0.05);
+      const bw = 14 * pulse;
+      const bh = 8 * pulse;
+      this.#pushQuad(drop.x - bw * 0.5 - 1, drop.y - bh * 0.5 - 1, bw + 2, bh + 2, 0.2, 'solid', [0.05, 0.2, 0.08, 1]);
+      this.#pushQuad(drop.x - bw * 0.5, drop.y - bh * 0.5, bw, bh, 0.2, 'solid', [0.35, 0.82, 0.38, 1]);
+      this.#pushQuad(drop.x - 2, drop.y - 2, 4, 4, 0.2, 'solid', [0.88, 1, 0.82, 1]);
     }
 
     // Mobiliário de praça, obstáculos e edificações

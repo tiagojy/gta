@@ -1,4 +1,12 @@
-import { findSafeExitPosition, hitTrashBin, resolvePedestrianEnvironmentCollisions } from '../physics/vehicle-physics.js';
+import { NPC_VEHICLE_CRUISE_SPEED, findSafeExitPosition, hitTrashBin, resolvePedestrianEnvironmentCollisions } from '../physics/vehicle-physics.js?v=19';
+
+// Velocidades dos NPCs (px/s). Valores menores deixam o trânsito e as calçadas mais calmos.
+const PED_WALK_SPEED = 45;
+const PED_FLEE_SPEED = 120;
+const PED_EJECT_SPEED = 90;
+const PED_TO_VEHICLE_SPEED = 66;
+const NPC_CURVE_SPEED = 68;
+const NPC_UTURN_SPEED = 58;
 import { resolveEntityCollisions } from '../physics/collision.js';
 import { SIDEWALK_WIDTH } from './city-layout.js';
 
@@ -139,8 +147,8 @@ export class TrafficManager {
       dirX: dir.x,
       dirY: dir.y,
       angle: Math.atan2(dir.y, dir.x),
-      speed: 62,
-      baseSpeed: 62,
+      speed: PED_WALK_SPEED,
+      baseSpeed: PED_WALK_SPEED,
       health: 100,
       radius: 10,
       hitCooldown: 0,
@@ -211,8 +219,8 @@ export class TrafficManager {
       dirX,
       dirY,
       angle: Math.atan2(dirY, dirX),
-      speed: 118,
-      baseSpeed: 62,
+      speed: PED_EJECT_SPEED,
+      baseSpeed: PED_WALK_SPEED,
       health: 100,
       radius: 10,
       hitCooldown: 0,
@@ -413,7 +421,7 @@ export class TrafficManager {
         }
       }
 
-      const targetSpeed = ped.state === 'fleeing' ? 158 : (ped.baseSpeed || 62);
+      const targetSpeed = ped.state === 'fleeing' ? PED_FLEE_SPEED : (ped.baseSpeed || PED_WALK_SPEED);
       ped.speed += (targetSpeed - ped.speed) * Math.min(1, dt * (ped.state === 'fleeing' ? 7 : 4));
 
       const nextX = ped.x + ped.dirX * ped.speed * dt;
@@ -1359,7 +1367,7 @@ export class TrafficManager {
         }
       }
 
-      const targetSpeed = blocked ? 0 : (curve.isUturn ? 82 : 96);
+      const targetSpeed = blocked ? 0 : (curve.isUturn ? NPC_UTURN_SPEED : NPC_CURVE_SPEED);
       const currentSpeed = Math.hypot(v.vx, v.vy);
       const accelRate = playerAhead ? 6.5 : 5;
       const nextSpeed = currentSpeed + (targetSpeed - currentSpeed) * Math.min(1, dt * accelRate);
@@ -1481,7 +1489,7 @@ export class TrafficManager {
       v.stuckTimer = 0;
     }
 
-    const targetSpeed = blocked ? 0 : 135;
+    const targetSpeed = blocked ? 0 : NPC_VEHICLE_CRUISE_SPEED;
     const currentSpeed = Math.hypot(v.vx, v.vy);
     const accelRate = playerAhead ? 6.5 : 4.5;
     const nextSpeed = currentSpeed + (targetSpeed - currentSpeed) * Math.min(1, dt * accelRate);
@@ -1597,9 +1605,9 @@ export class TrafficManager {
 
       const finalHeading = this.#getCardinalHeading(v.angle);
       v.angle = finalHeading.angle;
-      v.vx = Math.cos(v.angle) * 135;
-      v.vy = Math.sin(v.angle) * 135;
-      v.speed = 135;
+      v.vx = Math.cos(v.angle) * NPC_VEHICLE_CRUISE_SPEED;
+      v.vy = Math.sin(v.angle) * NPC_VEHICLE_CRUISE_SPEED;
+      v.speed = NPC_VEHICLE_CRUISE_SPEED;
       registerPlaced(v);
     }
   }
@@ -1683,7 +1691,7 @@ export class TrafficManager {
 
     const dirX = dx / dist;
     const dirY = dy / dist;
-    const walkSpeed = 88;
+    const walkSpeed = PED_TO_VEHICLE_SPEED;
     ped.dirX = dirX;
     ped.dirY = dirY;
     ped.angle = Math.atan2(dirY, dirX);

@@ -227,3 +227,31 @@ test('aceleração do veículo cresce progressivamente conforme o tempo segurand
   const lateGain = car.speed - speedBeforeLate;
   assert.ok(lateGain > earlyGain * 1.8, `ganho contínuo deve ser maior após manter pressionado (early=${earlyGain}, late=${lateGain})`);
 });
+
+test('W/S dirigem: throttlePressed acelera, brakePressed dá ré e Espaço (actionPressed) sozinho não acelera', async () => {
+  const { createVehicleEntity, updateVehicle } = await import('../src/physics/vehicle-physics.js');
+  const map = { getCollidersAround: () => [], worldWidth: 10000, worldHeight: 10000, isRoadAt: () => true };
+  const mk = () => {
+    const v = createVehicleEntity({ id: 'T', kind: 'car', model: 'x', color: '#fff', x: 500, y: 500, angle: 0 });
+    v.driver = 'player';
+    return v;
+  };
+
+  const space = mk();
+  for (let i = 0; i < 20; i++) {
+    updateVehicle(space, { moveX: 0, moveY: 0, actionPressed: true, secondaryPressed: false, throttlePressed: false, brakePressed: false }, 0.05, map);
+  }
+  assert.ok(space.speed < 1, 'Espaço não deve acelerar');
+
+  const gas = mk();
+  for (let i = 0; i < 20; i++) {
+    updateVehicle(gas, { moveX: 0, moveY: 0, actionPressed: false, secondaryPressed: false, throttlePressed: true, brakePressed: false }, 0.05, map);
+  }
+  assert.ok(gas.vx > 50, 'W deve acelerar para frente');
+
+  const reverse = mk();
+  for (let i = 0; i < 20; i++) {
+    updateVehicle(reverse, { moveX: 0, moveY: 0, actionPressed: false, secondaryPressed: false, throttlePressed: false, brakePressed: true }, 0.05, map);
+  }
+  assert.ok(reverse.vx < -20, 'S deve dar ré');
+});

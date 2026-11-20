@@ -1,9 +1,9 @@
 import { CityMap } from '../world/city-map.js?v=30';
-import { RoadPathfinder } from '../world/pathfinding.js';
-import { TrafficManager } from '../world/traffic-manager.js?v=24';
+import { RoadPathfinder } from '../world/pathfinding.js?v=2';
+import { TrafficManager } from '../world/traffic-manager.js?v=25';
 import { BoatManager } from '../world/boat-manager.js?v=17';
-import { InputManager } from '../input/input-manager.js?v=22';
-import { WebGLRenderer } from '../render/webgl-renderer.js?v=31';
+import { InputManager } from '../input/input-manager.js?v=23';
+import { WebGLRenderer } from '../render/webgl-renderer.js?v=32';
 import { isInWater, resolveCircleStaticObstacle, resolveEntityCollisions, resolveVehiclePairCollision } from '../physics/collision.js?v=11';
 import {
   applyPedestrianDamage,
@@ -17,13 +17,14 @@ import {
   findSafeExitPosition,
   hitTrashBin,
   isTouchingVehicle,
+  NPC_VEHICLE_CRUISE_SPEED,
   updateEjectedPlayer,
   updatePedestrian,
   updateTrashBin,
   updateVehicle,
   updateVehicleCriticalState
-} from '../physics/vehicle-physics.js?v=18';
-import { Minimap } from '../ui/minimap.js?v=27';
+} from '../physics/vehicle-physics.js?v=19';
+import { Minimap } from '../ui/minimap.js?v=28';
 import { Inventory } from './inventory.js?v=20';
 import {
   addAmmo,
@@ -35,11 +36,16 @@ import {
   updateBullets,
   updateWeaponState
 } from '../combat/weapons.js?v=2';
+import { rollPedestrianCash } from '../combat/cash-drops.js?v=1';
 
 const DEFAULT_MISSION_REWARD = 100;
 const LOCK_PICK_RADIUS = 24;
 const LOCK_MAX_RANGE = 600;
 const LOCK_CYCLE_RANGE = 520;
+const WAYPOINT_REACHED_RADIUS = 76;
+const WAYPOINT_CANCEL_RADIUS = 60;
+const CASH_PICKUP_RADIUS = 30;
+const CASH_DROP_LIFETIME = 90;
 import { createSaveSnapshot, saveGameState } from './save-state.js?v=3';
 import { applyCheat } from './cheats.js?v=1';
 import { CheatConsole } from '../ui/cheat-console.js?v=1';
@@ -105,6 +111,9 @@ export class Engine {
     this.smokeParticles = [];
     this.explosions = [];
     this.routePoints = [];
+    this.waypoint = null;
+    this.waypointRoutePoints = [];
+    this.cashDrops = [];
     this.objectiveCode = null;
     this.objectivePoint = null;
     this.objectiveNpcPoint = null;
@@ -173,6 +182,7 @@ export class Engine {
     });
     this.hud.onExpandedMapClose(() => this.closeExpandedMap());
     this.hud.onExpandedMapTransform((action) => this.#applyExpandedMapTransform(action));
+    this.hud.onExpandedMapWaypoint((pt) => this.#handleMapWaypointClick(pt));
     this.expandedMapView = { zoom: 1, centerX: 0, centerY: 0 };
 
     this.#onKeyDown = (e) => {
@@ -633,6 +643,9 @@ export class Engine {
     this.bullets = [];
     this.smokeParticles = [];
     this.explosions = [];
+    this.cashDrops = [];
+    this.waypoint = null;
+    this.waypointRoutePoints = [];
     this.pendingGameOver = null;
     this.deathSequence = null;
     this.hud?.setDeathDesaturation?.(0);
@@ -737,9 +750,9 @@ export class Engine {
         if (Math.hypot(spawn.x - this.player.x, spawn.y - this.player.y) < 90) continue;
         const veh = createVehicleEntity(spawn);
         veh.chunkKey = spawn.chunkKey;
-        veh.vx = Math.cos(veh.angle) * 135;
-        veh.vy = Math.sin(veh.angle) * 135;
-        veh.speed = 135;
+        veh.vx = Math.cos(veh.angle) * NPC_VEHICLE_CRUISE_SPEED;
+        veh.vy = Math.sin(veh.angle) * NPC_VEHICLE_CRUISE_SPEED;
+        veh.speed = NPC_VEHICLE_CRUISE_SPEED;
         this.vehicles.push(veh);
         existingVehIds.add(veh.id);
       }
@@ -1109,6 +1122,94 @@ export class Engine {
     }
   }
 
+  // Botão direito no mapa ampliado: marca (ou cancela) um destino e traça o caminho até lá.
+  #handleMapWaypointClick({ canvasX, canvasY } = {}) {
+    const canvas = this.hud.expandedMapCanvas;
+    if (!canvas || !this.cityMap || !this.hud.isExpandedMapOpen()) return;
+    if (!Number.isFinite(canvasX) || !Number.isFinite(canvasY)) return;
+    const zoom = Math.max(1, Math.min(6, this.expandedMapView.zoom || 1));
+    const scale = this.minimap.getExpandedBaseScale(canvas, this.cityMap) * zoom;
+    if (!(scale > 0)) return;
+    const x = this.expandedMapView.centerX + (canvasX - canvas.width * 0.5) / scale;
+    const y = this.expandedMapView.centerY + (canvasY - canvas.height * 0.5) / scale;
+    if (x < 0 || y < 0 || x > this.cityMap.worldWidth || y > this.cityMap.worldHeight) return;
+
+    // Clicar de novo em cima do destino atual cancela a marcação.
+    if (this.waypoint && Math.hypot(this.waypoint.x - x, this.waypoint.y - y) < 14 / scale) {
+      this.clearWaypoint();
+      this.#renderExpandedMap();
+      return;
+    }
+    this.setWaypoint(x, y);
+    this.#renderExpandedMap();
+  }
+
+  setWaypoint(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    this.waypoint = { x, y };
+    this.waypointTimer = 0;
+    this.waypointRoutePoints = this.pathfinder
+      ? this.pathfinder.findRouteToPoint(this.player.x, this.player.y, x, y)
+      : [];
+  }
+
+  clearWaypoint() {
+    this.waypoint = null;
+    this.waypointRoutePoints = [];
+  }
+
+  #updateWaypoint(dt) {
+    if (!this.waypoint) return;
+    const dist = Math.hypot(this.player.x - this.waypoint.x, this.player.y - this.waypoint.y);
+    if (dist < WAYPOINT_REACHED_RADIUS) {
+      this.clearWaypoint();
+      this.hud.showToast('Você chegou ao destino marcado.');
+      return;
+    }
+    this.waypointTimer = (this.waypointTimer || 0) + dt;
+    if (this.waypointTimer >= 0.25) {
+      this.waypointTimer = 0;
+      this.waypointRoutePoints = this.pathfinder.findRouteToPoint(
+        this.player.x, this.player.y, this.waypoint.x, this.waypoint.y
+      );
+    }
+  }
+
+  // NPC que morreu (tiro, atropelamento, explosão...) solta dinheiro no chão.
+  #updateCashDrops(dt) {
+    const peds = this.trafficManager?.pedestrians || [];
+    for (const ped of peds) {
+      if (ped.state !== 'downed' || ped.cashDropped) continue;
+      ped.cashDropped = true;
+      this.cashDrops.push({
+        x: ped.x,
+        y: ped.y,
+        amount: Number.isFinite(ped.cashValue) ? ped.cashValue : rollPedestrianCash(),
+        age: 0
+      });
+    }
+
+    if (this.cashDrops.length === 0) return;
+    const collector = this.player.inVehicleId
+      ? this.vehicles.find((v) => v.id === this.player.inVehicleId)
+      : this.player;
+    for (let i = this.cashDrops.length - 1; i >= 0; i--) {
+      const drop = this.cashDrops[i];
+      drop.age += dt;
+      if (drop.age > CASH_DROP_LIFETIME) {
+        this.cashDrops.splice(i, 1);
+        continue;
+      }
+      if (!collector || this.player.isDead) continue;
+      if (Math.hypot(collector.x - drop.x, collector.y - drop.y) <= CASH_PICKUP_RADIUS) {
+        this.addMoney(drop.amount);
+        this.hud.showToast(`+R$ ${drop.amount}`);
+        this.cashDrops.splice(i, 1);
+        this.#persistSaveState();
+      }
+    }
+  }
+
   #renderExpandedMap() {
     this.minimap.renderExpanded(
       this.hud.expandedMapCanvas,
@@ -1121,6 +1222,7 @@ export class Engine {
       window.innerHeight,
       this.expandedMapView,
       this.encounterLocationCodes,
+      { waypoint: this.waypoint, waypointRoutePoints: this.waypointRoutePoints },
     );
   }
 
@@ -1438,8 +1540,8 @@ export class Engine {
         }
         this.#updatePlayerAim(input);
         this.#handlePlayerWeaponInput(input);
-        if (input.actionJustPressed && !this.#isNearInteriorStoryNpc()) {
-          const encounterNpc = this.#findNearbyEncounterNpc();
+        if ((input.actionJustPressed || input.vehicleEnterJustPressed) && !this.#isNearInteriorStoryNpc()) {
+          const encounterNpc = input.actionJustPressed ? this.#findNearbyEncounterNpc() : null;
           if (encounterNpc && this.cutscene) {
             this.player.speed = 0;
             this.cutscene.play(encounterNpc.cutscene, this.storyPackage.characters, (result) => {
@@ -1449,7 +1551,10 @@ export class Engine {
             });
             return;
           }
-          const nearest = findNearestVehicle(this.player.x, this.player.y, this.vehicles);
+          // Só a tecla F (ou o botão de ação no toque/gamepad) entra/rouba veículo; o Espaço apenas conversa.
+          const nearest = input.vehicleEnterJustPressed
+            ? findNearestVehicle(this.player.x, this.player.y, this.vehicles)
+            : null;
           if (nearest) {
             const hadNpcDriver = nearest.driver === 'npc';
             if (hadNpcDriver) {
@@ -1469,7 +1574,7 @@ export class Engine {
               duration: hadNpcDriver ? 0.34 : 0.24,
               hadNpcDriver,
             };
-          } else {
+          } else if (input.actionJustPressed) {
             const ped = this.#findNearestTalkablePedestrian(this.player.x, this.player.y);
             if (ped) {
               ped.angle = Math.atan2(this.player.y - ped.y, this.player.x - ped.x);
@@ -1708,6 +1813,8 @@ export class Engine {
     this.#updateParticles(dt);
     this.#updateExplosions(dt);
     this.#updateCombat(dt);
+    this.#updateCashDrops(dt);
+    this.#updateWaypoint(dt);
     this.#updateTrashBins(dt, nearbyVehicles);
 
     if ((this.player.vehicleHitCooldown || 0) > 0) {
@@ -2111,7 +2218,6 @@ export class Engine {
   #updatePlayerAim(input) {
     const peds = this.trafficManager?.pedestrians || [];
 
-    if (input.clearLockJustPressed) this.lockedTarget = null;
     if (input.lockNearestJustPressed) this.lockedTarget = this.#nextLockTarget(peds);
     if (input.lockClick) {
       const w = this.#screenToWorld(input.lockClick.clientX, input.lockClick.clientY);
@@ -2407,6 +2513,7 @@ export class Engine {
       player: this.player,
       skidMarks: this.skidMarks,
       bloodMarks: this.bloodMarks,
+      cashDrops: this.cashDrops,
       bullets: this.bullets,
       lockTarget: this.lockedTarget,
       smokeParticles: this.smokeParticles,
@@ -2462,6 +2569,7 @@ export class Engine {
       this.objectivePoint,
       this.worldCollectibles,
       this.encounterLocationCodes,
+      { waypoint: this.waypoint, waypointRoutePoints: this.waypointRoutePoints },
     );
     if (this.hud.isExpandedMapOpen()) {
       this.#renderExpandedMap();

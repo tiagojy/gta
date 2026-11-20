@@ -23,3 +23,16 @@ test('retorna lista vazia quando não há objetivo ativo', () => {
   const route = pathfinder.findRoute(100, 100, null);
   assert.deepEqual(route, []);
 });
+
+test('findRouteToPoint traça rota pelas ruas até uma coordenada qualquer e termina no ponto', async () => {
+  const { CityMap } = await import('../src/world/city-map.js');
+  const { RoadPathfinder } = await import('../src/world/pathfinding.js');
+  const map = new CityMap();
+  const finder = new RoadPathfinder(map);
+  const from = { x: map.worldWidth * 0.1, y: map.worldHeight * 0.1 };
+  const goal = { x: map.worldWidth * 0.8, y: map.worldHeight * 0.7 };
+  const route = finder.findRouteToPoint(from.x, from.y, goal.x, goal.y);
+  assert.ok(route.length >= 3);
+  assert.deepEqual(route[0], from);
+  assert.deepEqual(route[route.length - 1], goal);
+});

@@ -236,7 +236,7 @@ test('pedestre atravessa rua perpendicularmente à calçada até o quarteirão o
   assert.equal(ped.dirX, 0);
   assert.equal(ped.dirY, 1);
 
-  for (let i = 0; i < 60 && ped.state === 'crossing'; i++) {
+  for (let i = 0; i < 120 && ped.state === 'crossing'; i++) {
     traffic.update(0.05, player, [], []);
   }
   assert.equal(ped.state, 'walking');
@@ -506,7 +506,7 @@ test('veículo dando conversão à esquerda no cruzamento dá preferência ao tr
   assert.ok(Math.abs(turningLeft.angle) < 0.01, 'deve aguardar na faixa antes de virar');
 
   // Após o veículo contrário passar do cruzamento, o carro conclui a conversão à esquerda (passa a ir para Norte: -PI/2)
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 100; i++) {
     traffic.update(0.05, player, [turningLeft, oncoming], [], greenTime);
   }
   assert.ok(Math.abs(turningLeft.angle + Math.PI * 0.5) < 0.01, 'deve concluir a conversão à esquerda após passagem do sentido contrário');
@@ -567,7 +567,7 @@ test('normalizeTrafficAtMissionStart separa veículos amontoados e garante todos
   traffic.normalizeTrafficAtMissionStart(vehicles, player);
 
   for (let i = 0; i < vehicles.length; i++) {
-    assert.ok(vehicles[i].speed > 100, 'todos os veículos devem iniciar em movimento');
+    assert.ok(vehicles[i].speed > 80, 'todos os veículos devem iniciar em movimento');
     for (let j = i + 1; j < vehicles.length; j++) {
       const dist = Math.hypot(vehicles[i].x - vehicles[j].x, vehicles[i].y - vehicles[j].y);
       assert.ok(dist >= 119, `veículos não podem iniciar amontoados (dist=${dist})`);
