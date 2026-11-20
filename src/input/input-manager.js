@@ -28,9 +28,11 @@ export class InputManager {
     this.prevExit = false;
     this.prevReload = false;
     this.prevLockKey = false;
+    this.prevDigits = new Set();
+    this.wheelDelta = 0;
+    this.prevVehicleEnter = false;
     this.mouse = { clientX: 0, clientY: 0, lastMoveAt: -Infinity, down: false };
     this.pendingClick = null;
-    this.pendingClearLock = false;
     this.secondaryHeldTime = 0;
     this.exitCooldown = 0;
 
@@ -64,7 +66,7 @@ export class InputManager {
     });
   }
 
-  // Mouse: mira, clique para atirar e fixar alvo. Só conta o ponteiro do tipo "mouse"
+  // Mouse: mira, botão esquerdo atira e botão direito fixa o alvo. Só conta o ponteiro do tipo "mouse"
   // (toques na tela do celular continuam usando os botões virtuais).
   #bindMouse() {
     const isUiTarget = (t) => Boolean(
@@ -84,10 +86,11 @@ export class InputManager {
       this.mouse.clientY = e.clientY;
       this.mouse.lastMoveAt = performance.now();
       if (e.button === 0) {
+        // Botão esquerdo: atira (segurar = rajada).
         this.mouse.down = true;
-        this.pendingClick = { clientX: e.clientX, clientY: e.clientY };
       } else if (e.button === 2) {
-        this.pendingClearLock = true;
+        // Botão direito: marca/seleciona o NPC (clicar em espaço vazio solta o alvo).
+        this.pendingClick = { clientX: e.clientX, clientY: e.clientY };
       }
     });
 
@@ -102,6 +105,12 @@ export class InputManager {
     window.addEventListener('contextmenu', (e) => {
       if (!isUiTarget(e.target)) e.preventDefault();
     });
+
+    // Roda do mouse troca de arma (Ctrl + roda continua sendo o zoom do navegador)
+    window.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || isUiTarget(e.target)) return;
+      this.wheelDelta += e.deltaY;
+    }, { passive: true });
   }
 
   #resetAnalog() {
@@ -377,17 +386,24 @@ export class InputManager {
       this.touchButtons.has('secondary');
 
     const gp = this.#readGamepad();
-    const firePressed = Boolean(this.keys.has('KeyF') || this.touchButtons.has('fire') || gp.fire || this.mouse.down);
+    const firePressed = Boolean(this.touchButtons.has('fire') || gp.fire || this.mouse.down);
     const reloadPressed = Boolean(this.keys.has('KeyR') || gp.reload);
     const reloadJustPressed = reloadPressed && !this.prevReload;
     this.prevReload = reloadPressed;
     const lockKeyHeld = this.keys.has('KeyG');
     const lockNearestJustPressed = lockKeyHeld && !this.prevLockKey;
     this.prevLockKey = lockKeyHeld;
+    let weaponSlotJustPressed = null;
+    for (let digit = 1; digit <= 5; digit++) {
+      const held = this.keys.has(`Digit${digit}`);
+      if (held && !this.prevDigits.has(digit)) weaponSlotJustPressed = digit - 1;
+      if (held) this.prevDigits.add(digit);
+      else this.prevDigits.delete(digit);
+    }
+    const weaponCycle = Math.sign(this.wheelDelta);
+    this.wheelDelta = 0;
     const lockClick = this.pendingClick;
     this.pendingClick = null;
-    const clearLockJustPressed = this.pendingClearLock;
-    this.pendingClearLock = false;
     const mouseAim = {
       active: this.mouse.down || (performance.now() - this.mouse.lastMoveAt) < MOUSE_AIM_ACTIVE_MS,
       clientX: this.mouse.clientX,
@@ -397,6 +413,29 @@ export class InputManager {
     if (Math.abs(gp.moveY) > 0) moveY = gp.moveY;
     actionPressed = actionPressed || gp.action;
     secondaryPressed = secondaryPressed || gp.secondary;
+
+    // Direção estilo jogo de carro: W/↑ acelera; S/↓ (ou Shift/X) freia e dá ré.
+    // O Espaço não acelera mais. Toque/gamepad continuam usando os botões de ação.
+    const throttlePressed = Boolean(
+      this.keys.has('KeyW') ||
+      this.keys.has('ArrowUp') ||
+      this.touchButtons.has('action') ||
+      gp.action
+    );
+    const brakePressed = Boolean(
+      this.keys.has('KeyS') ||
+      this.keys.has('ArrowDown') ||
+      secondaryPressed
+    );
+
+    // Entrar/roubar veículo: tecla F (toque e gamepad seguem usando o botão de ação).
+    const vehicleEnterPressed = Boolean(
+      this.keys.has('KeyF') ||
+      this.touchButtons.has('action') ||
+      gp.action
+    );
+    const vehicleEnterJustPressed = vehicleEnterPressed && !this.prevVehicleEnter;
+    this.prevVehicleEnter = vehicleEnterPressed;
     const pausePressed = Boolean(gp.pause);
 
     const len = Math.hypot(moveX, moveY);
@@ -481,9 +520,13 @@ export class InputManager {
       firePressed,
       reloadJustPressed,
       mouseAim,
+      weaponSlotJustPressed,
+      weaponCycle,
       lockClick,
-      clearLockJustPressed,
       lockNearestJustPressed,
+      throttlePressed,
+      brakePressed,
+      vehicleEnterJustPressed,
       secondaryHeldTime: this.secondaryHeldTime,
       comboExitJustPressed,
       canTriggerHoldExit: this.exitCooldown === 0 && this.secondaryHeldTime >= 0.6

@@ -92,3 +92,19 @@ test('missão aceita campo opcional "reward" numérico; sem ele fica nulo', () =
   const negative = original.replace(/^---\n/, '---\nreward: -5\n');
   assert.equal(parseMissionMarkdown(negative, file, cityMap).reward, null);
 });
+
+test('save guarda e restaura o arsenal completo; formatos inválidos viram nulo', () => {
+  const storage = createMemoryStorage();
+  const arsenal = {
+    equipped: 'smg',
+    owned: [
+      { id: 'pistol', ammoInMag: 5, ammoReserve: 30 },
+      { id: 'smg', ammoInMag: 12, ammoReserve: 90 },
+    ],
+  };
+  assert.ok(saveGameState(createSaveSnapshot({ storyKey: 'hist', arsenal, player: {} }), storage));
+  assert.deepEqual(loadGameState('hist', storage).arsenal, arsenal);
+
+  assert.equal(createSaveSnapshot({ arsenal: { owned: [] }, player: {} }).arsenal, null);
+  assert.equal(createSaveSnapshot({ arsenal: 'xx', player: {} }).arsenal, null);
+});

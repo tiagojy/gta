@@ -1,5 +1,8 @@
 import { isPositionFree, resolveCircleOBB, resolveEntityCollisions } from './collision.js';
 
+// Velocidade de cruzeiro dos veículos controlados por NPCs (px/s).
+export const NPC_VEHICLE_CRUISE_SPEED = 95;
+
 export const VEHICLE_PROFILES = {
   car: {
     maxSpeed: 420,
@@ -42,7 +45,7 @@ export const VEHICLE_PROFILES = {
 export function createVehicleEntity(spawn) {
   const profile = VEHICLE_PROFILES[spawn.kind] || VEHICLE_PROFILES.car;
   const angle = spawn.angle || 0;
-  const initialSpeed = spawn.driver === 'npc' ? 135 : 0;
+  const initialSpeed = spawn.driver === 'npc' ? NPC_VEHICLE_CRUISE_SPEED : 0;
   return {
     id: spawn.id,
     kind: spawn.kind,
@@ -139,12 +142,17 @@ export function updateVehicle(vehicle, input, dt, cityMap) {
     let forwardSpeed = vehicle.vx * cos + vehicle.vy * sin;
     let lateralSpeed = -vehicle.vx * sin + vehicle.vy * cos;
 
-    if (input.actionPressed && !input.secondaryPressed) {
+    // W/↑ acelera, S/↓ freia e dá ré. Entradas antigas (actionPressed/secondaryPressed)
+    // continuam valendo quando throttlePressed/brakePressed não vêm no input.
+    const throttle = Boolean(input.throttlePressed ?? input.actionPressed);
+    const brake = Boolean(input.brakePressed ?? input.secondaryPressed);
+
+    if (throttle && !brake) {
       vehicle.accelHoldTime = (vehicle.accelHoldTime || 0) + dt;
       const ramp = Math.min(1, vehicle.accelHoldTime / 1.4);
       const accelFactor = 0.25 + 0.75 * Math.pow(ramp, 1.15);
       forwardSpeed += profile.accel * accelFactor * dt;
-    } else if (input.secondaryPressed && !input.actionPressed) {
+    } else if (brake && !throttle) {
       vehicle.accelHoldTime = 0;
       if (forwardSpeed > 25) {
         forwardSpeed -= profile.brake * dt;

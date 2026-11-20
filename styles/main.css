@@ -2555,3 +2555,152 @@ body {
 #cheat-console .cheat-message.ok {
   color: #86efac;
 }
+
+#shop-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(10, 14, 22, 0.92);
+  border: 1px solid rgba(250, 204, 21, 0.6);
+  color: #fde68a;
+  font-size: 14px;
+  font-weight: 700;
+  z-index: 40;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+#shop-prompt.hidden {
+  display: none;
+}
+
+#shop-menu {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(10, 14, 22, 0.97);
+  border: 1px solid rgba(250, 204, 21, 0.6);
+  color: #f8fafc;
+  z-index: 61;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+
+#shop-menu.hidden {
+  display: none;
+}
+
+#shop-menu .shop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+#shop-menu .shop-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #facc15;
+}
+
+#shop-menu .shop-money {
+  font-size: 14px;
+  font-weight: 700;
+  color: #86efac;
+  white-space: nowrap;
+}
+
+#shop-menu .shop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+#shop-menu .shop-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+#shop-menu .shop-detail {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+#shop-menu .shop-buy {
+  flex: 0 0 auto;
+  min-width: 104px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(250, 204, 21, 0.7);
+  background: rgba(250, 204, 21, 0.16);
+  color: #fde68a;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#shop-menu .shop-buy:hover:not(:disabled) {
+  background: rgba(250, 204, 21, 0.3);
+}
+
+#shop-menu .shop-buy:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #cbd5e1;
+  background: transparent;
+}
+
+#shop-menu .shop-message {
+  min-height: 20px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+#shop-menu .shop-message.ok {
+  color: #86efac;
+}
+
+#shop-menu .shop-message.error {
+  color: #fca5a5;
+}
+
+#shop-menu .shop-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  gap: 12px;
+}
+
+#shop-menu .shop-hint {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+#shop-menu .shop-close {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(30, 41, 59, 0.9);
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}

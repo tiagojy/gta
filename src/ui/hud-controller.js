@@ -86,6 +86,7 @@ export class HudController {
     this.expandedMapZoomOutBtn = document.getElementById('expanded-map-zoom-out-btn');
     this.expandedMapZoomResetBtn = document.getElementById('expanded-map-zoom-reset-btn');
     this.minimapClickHandler = null;
+    this.expandedMapWaypointHandler = null;
     this.expandedMapCloseHandler = null;
     this.expandedMapTransformHandler = null;
     this.expandedMapPointers = new Map();
@@ -449,6 +450,11 @@ export class HudController {
     this.expandedMapTransformHandler = handler;
   }
 
+  // Botão direito no mapa ampliado: marcar um destino (recebe { canvasX, canvasY }).
+  onExpandedMapWaypoint(handler) {
+    this.expandedMapWaypointHandler = handler;
+  }
+
   setExpandedMapZoomLabel(zoom = 1) {
     if (!this.expandedMapZoomResetBtn) return;
     const rounded = Math.abs(zoom - Math.round(zoom)) < 0.05 ? Math.round(zoom) : zoom.toFixed(1);
@@ -487,8 +493,17 @@ export class HudController {
       if (this.isExpandedMapOpen()) e.preventDefault();
     }, { passive: false });
 
+    // Botão direito marca o destino; o menu do navegador não deve aparecer sobre o mapa.
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (!this.isExpandedMapOpen()) return;
+      const pt = this.#toExpandedCanvasPoint(e.clientX, e.clientY);
+      this.expandedMapWaypointHandler?.({ canvasX: pt.x, canvasY: pt.y });
+    });
+
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.isExpandedMapOpen()) return;
+      if (e.pointerType === 'mouse' && e.button === 2) return;
       canvas.setPointerCapture?.(e.pointerId);
       const pt = this.#toExpandedCanvasPoint(e.clientX, e.clientY);
       this.expandedMapPointers.set(e.pointerId, pt);

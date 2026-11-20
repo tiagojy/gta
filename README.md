@@ -71,9 +71,10 @@ Basta trocar os textos e imagens dessa pasta para publicar sua própria aventura
 - **Balões de diálogo estilo HQ**: moradores na rua e reações no inventário exibem balões animados acima do alvo com efeito de digitação.
 - **Mapa ampliado inteligente**: enquadramento automático de jogador e destino ao abrir, zoom por pinça/scroll/botões e rota traçada pelas ruas até o objetivo.
 - **Controles multiplataforma**:
-  - **Teclado**: `Setas` ou `WASD` para mover/dirigir, `Espaço` para ação/acelerar, `Shift`/`X` para frear/ré, `I`/`Tab` para inventário, `M` para mapa ampliado e `Esc`/`P` para pausa.
+  - **Teclado**: `Setas` ou `WASD` para mover, `W`/`↑` para acelerar e `S`/`↓` (ou `Shift`/`X`) para frear/dar ré, `F` para entrar/roubar veículo, `Espaço` para ação/conversar, botão esquerdo do mouse para atirar, botão direito para marcar o NPC (e, no mapa ampliado, marcar um destino), `I`/`Tab` para inventário, `M` para mapa ampliado e `Esc`/`P` para pausa.
   - **Joystick / Gamepad**: suporte completo em menus, diálogos e direção.
   - **Tela de toque (iOS/Android)**: analógico virtual a pé, volante horizontal com âncora relativa ao primeiro toque ao dirigir, além de HUD adaptativo para modo retrato e paisagem.
+- **Armas e Armaria**: pistola, submetralhadora e escopeta (teclas `1`–`3` ou roda do mouse trocam de arma, `R` recarrega). A **Armaria Bom Preço** (telhado vermelho no mapa) vende armas e munição no balcão (`Espaço`). O dinheiro vem de missões e dos NPCs abatidos; `F2` abre o console de cheats (`dinheiro`, `municao`, `vida`, `ajuda`).
 - **Progresso salvo no navegador**: missões desbloqueadas, inventário e posição são preservados entre recarregamentos.
 
 ---

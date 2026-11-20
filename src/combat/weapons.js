@@ -6,17 +6,58 @@ export const WEAPONS = {
   pistol: {
     id: 'pistol',
     name: 'Pistola',
+    shortName: 'Pistola',
     damage: 34,
+    pellets: 1, // projéteis por disparo
     fireInterval: 0.28, // segundos entre tiros
     bulletSpeed: 820, // px/s
     range: 560, // px
     magSize: 12,
+    maxReserve: 120, // máximo de balas guardadas fora do carregador
     reloadTime: 1.2, // segundos
     spread: 0.03, // dispersão aleatória (radianos)
     spawnOffset: 6, // a bala nasce dentro do corpo do jogador, para nunca atravessar uma parede colada
-    flashTime: 0.06
+    flashTime: 0.06,
+    visualLength: 11 // tamanho da arma desenhada na mão do personagem
+  },
+  smg: {
+    id: 'smg',
+    name: 'Submetralhadora',
+    shortName: 'SMG',
+    damage: 18,
+    pellets: 1,
+    fireInterval: 0.085,
+    bulletSpeed: 900,
+    range: 520,
+    magSize: 30,
+    maxReserve: 180,
+    reloadTime: 1.6,
+    spread: 0.09,
+    spawnOffset: 6,
+    flashTime: 0.05,
+    visualLength: 15
+  },
+  shotgun: {
+    id: 'shotgun',
+    name: 'Escopeta',
+    shortName: 'Escopeta',
+    damage: 22, // por projétil (cada tiro lança vários)
+    pellets: 6,
+    fireInterval: 0.85,
+    bulletSpeed: 780,
+    range: 300,
+    magSize: 6,
+    maxReserve: 48,
+    reloadTime: 2.2,
+    spread: 0.34,
+    spawnOffset: 6,
+    flashTime: 0.08,
+    visualLength: 22
   }
 };
+
+// Ordem usada nas teclas 1, 2, 3... e na roda do mouse.
+export const WEAPON_ORDER = ['pistol', 'smg', 'shotgun'];
 
 export function getWeaponDef(weaponId) {
   const def = WEAPONS[weaponId];
@@ -34,7 +75,8 @@ export function createWeaponState(weaponId = 'pistol', { reserve = 36 } = {}) {
     ammoReserve: Math.max(0, Math.floor(reserve)),
     cooldown: 0,
     reloadTimer: 0,
-    flashTimer: 0
+    flashTimer: 0,
+    visualLength: def.visualLength
   };
 }
 
@@ -56,9 +98,18 @@ export function isReloading(state) {
   return state.reloadTimer > 0;
 }
 
+// Soma munição à reserva respeitando o máximo da arma. Devolve quantas balas realmente entraram.
 export function addAmmo(state, amount) {
-  if (!state || amount <= 0) return;
-  state.ammoReserve += Math.floor(amount);
+  if (!state || !(amount > 0)) return 0;
+  const def = getWeaponDef(state.id);
+  const room = Math.max(0, def.maxReserve - state.ammoReserve);
+  const added = Math.min(room, Math.floor(amount));
+  state.ammoReserve += added;
+  return added;
+}
+
+export function cancelReload(state) {
+  if (state) state.reloadTimer = 0;
 }
 
 function finishReload(state) {
@@ -97,19 +148,29 @@ export function updateWeaponState(state, dt) {
 
 // Tenta atirar. Devolve a bala criada ou null (em recarga, em intervalo ou sem munição).
 // Com o carregador vazio, dispara a recarga automaticamente (se houver munição de reserva).
-export function tryFire(state, x, y, angle, rng = Math.random) {
-  if (!state) return null;
+export function tryFireBullets(state, x, y, angle, rng = Math.random) {
+  if (!state) return [];
   const def = getWeaponDef(state.id);
-  if (isReloading(state) || state.cooldown > 0) return null;
+  if (isReloading(state) || state.cooldown > 0) return [];
   if (state.ammoInMag <= 0) {
     startReload(state);
-    return null;
+    return [];
   }
   state.ammoInMag -= 1;
   state.cooldown = def.fireInterval;
   state.flashTimer = def.flashTime;
-  const shotAngle = angle + (rng() - 0.5) * def.spread;
-  return createBullet(def, x, y, shotAngle);
+  const bullets = [];
+  for (let i = 0; i < (def.pellets || 1); i++) {
+    const shotAngle = angle + (rng() - 0.5) * def.spread;
+    bullets.push(createBullet(def, x, y, shotAngle));
+  }
+  return bullets;
+}
+
+// Versão simples: devolve só o primeiro projétil (ou null). Boa para armas de um tiro por disparo.
+export function tryFire(state, x, y, angle, rng = Math.random) {
+  const bullets = tryFireBullets(state, x, y, angle, rng);
+  return bullets.length > 0 ? bullets[0] : null;
 }
 
 export function createBullet(def, x, y, angle) {

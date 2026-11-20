@@ -1,3 +1,4 @@
+import { GUN_SHOP_CODE } from '../shop/shop-location.js?v=1';
 export class Minimap {
   constructor(canvas) {
     this.canvas = canvas;
@@ -27,6 +28,8 @@ export class Minimap {
     objectivePoint,
     worldCollectibles = [],
     encounterLocations = null,
+    waypoint = null,
+    waypointRoutePoints = null,
     scale,
     centerX,
     centerY,
@@ -102,7 +105,7 @@ export class Minimap {
             ctx.restore();
           }
         } else {
-          ctx.fillStyle = building.type === 'commerce' ? '#4f6d9a' : '#7c5c4e';
+          ctx.fillStyle = building.code === GUN_SHOP_CODE ? '#c0392b' : building.type === 'commerce' ? '#4f6d9a' : '#7c5c4e';
           ctx.fillRect(bx, by, bw, bh);
         }
       }
@@ -170,6 +173,60 @@ export class Minimap {
       }
     }
 
+    if (waypointRoutePoints && waypointRoutePoints.length > 1) {
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = expanded ? 3 : 2.5;
+      ctx.beginPath();
+      ctx.moveTo(toMiniX(waypointRoutePoints[0].x), toMiniY(waypointRoutePoints[0].y));
+      for (let i = 1; i < waypointRoutePoints.length; i += 1) {
+        ctx.lineTo(toMiniX(waypointRoutePoints[i].x), toMiniY(waypointRoutePoints[i].y));
+      }
+      ctx.stroke();
+    }
+
+    if (waypoint) {
+      const wx = toMiniX(waypoint.x);
+      const wy = toMiniY(waypoint.y);
+      const pad = 8;
+      const outOfView = !expanded && (wx < pad || wx > w - pad || wy < pad || wy > h - pad);
+      if (outOfView) {
+        const cx = w * 0.5;
+        const cy = h * 0.5;
+        const dx = wx - cx;
+        const dy = wy - cy;
+        const clampScale = Math.max(Math.abs(dx) / Math.max(1, cx - pad), Math.abs(dy) / Math.max(1, cy - pad), 1);
+        ctx.save();
+        ctx.translate(cx + dx / clampScale, cy + dy / clampScale);
+        ctx.rotate(Math.atan2(dy, dx));
+        ctx.fillStyle = '#f43f5e';
+        ctx.strokeStyle = '#111827';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(6.5, 0);
+        ctx.lineTo(-4.5, -5);
+        ctx.lineTo(-4.5, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        if (expanded) {
+          ctx.strokeStyle = 'rgba(244, 63, 94, 0.55)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(wx, wy, 10, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath();
+        ctx.arc(wx, wy, expanded ? 6 : 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#111827';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
     if (worldCollectibles && worldCollectibles.length > 0) {
       ctx.save();
       const expandedFontSize = Math.max(19, Math.round(Math.min(w, h) * 0.045));
@@ -212,7 +269,7 @@ export class Minimap {
     ctx.restore();
   }
 
-  render(cityMap, player, routePoints, objectivePoint, worldCollectibles = [], encounterLocations = null) {
+  render(cityMap, player, routePoints, objectivePoint, worldCollectibles = [], encounterLocations = null, extras = null) {
     const ctx = this.ctx;
     const w = this.canvas.width;
     const h = this.canvas.height;
@@ -224,6 +281,8 @@ export class Minimap {
       objectivePoint,
       worldCollectibles,
       encounterLocations,
+      waypoint: extras?.waypoint || null,
+      waypointRoutePoints: extras?.waypointRoutePoints || null,
       scale,
       centerX: player.x,
       centerY: player.y,
@@ -316,6 +375,7 @@ export class Minimap {
     viewportHeight = 600,
     viewState = null,
     encounterLocations = null,
+    extras = null,
   ) {
     if (!expandedCanvas || !cityMap) return;
     const { width: targetW, height: targetH } = this.getExpandedCanvasSize(viewportWidth, viewportHeight);
@@ -340,6 +400,8 @@ export class Minimap {
       objectivePoint,
       worldCollectibles,
       encounterLocations,
+      waypoint: extras?.waypoint || null,
+      waypointRoutePoints: extras?.waypointRoutePoints || null,
       scale,
       centerX,
       centerY,

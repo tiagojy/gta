@@ -24,8 +24,8 @@ const CHEATS = {
   municao: {
     description: `+${CHEAT_AMMO_AMOUNT} balas de reserva`,
     run: (api) => {
-      api.addAmmo(CHEAT_AMMO_AMOUNT);
-      return `Você ganhou ${CHEAT_AMMO_AMOUNT} balas de reserva.`;
+      const added = api.addAmmo(CHEAT_AMMO_AMOUNT) ?? CHEAT_AMMO_AMOUNT;
+      return added > 0 ? `Você ganhou ${added} balas de reserva.` : 'A reserva já está cheia.';
     },
   },
   vida: {
