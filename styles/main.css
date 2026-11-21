@@ -2704,3 +2704,11 @@ body {
   font-weight: 700;
   cursor: pointer;
 }
+
+.hud-health-row.armor-row.hidden {
+  display: none;
+}
+
+#armor-fill {
+  background: #38bdf8;
+}

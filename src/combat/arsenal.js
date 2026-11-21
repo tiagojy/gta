@@ -6,7 +6,7 @@ import {
   cancelReload,
   createWeaponState,
   restoreWeaponState
-} from './weapons.js';
+} from './weapons.js?v=4';
 
 export function createArsenal() {
   return {

@@ -18,6 +18,10 @@ export const WEAPONS = {
     spread: 0.03, // dispersão aleatória (radianos)
     spawnOffset: 6, // a bala nasce dentro do corpo do jogador, para nunca atravessar uma parede colada
     flashTime: 0.06,
+    noise: 420, // até onde o barulho do tiro assusta pedestres (px)
+    shake: 0.06, // tremida de câmera por disparo
+    pickupAmmo: 12, // balas que uma caixa de munição dá
+    casingColor: [0.86, 0.68, 0.22],
     visualLength: 11 // tamanho da arma desenhada na mão do personagem
   },
   smg: {
@@ -35,6 +39,10 @@ export const WEAPONS = {
     spread: 0.09,
     spawnOffset: 6,
     flashTime: 0.05,
+    noise: 520,
+    shake: 0.045,
+    pickupAmmo: 30,
+    casingColor: [0.86, 0.68, 0.22],
     visualLength: 15
   },
   shotgun: {
@@ -52,6 +60,10 @@ export const WEAPONS = {
     spread: 0.34,
     spawnOffset: 6,
     flashTime: 0.08,
+    noise: 640,
+    shake: 0.13,
+    pickupAmmo: 8,
+    casingColor: [0.82, 0.18, 0.16],
     visualLength: 22
   }
 };

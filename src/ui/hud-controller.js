@@ -47,6 +47,9 @@ export class HudController {
     this.locationCodeEl = document.getElementById('location-code');
     this.vehicleStatusEl = document.getElementById('vehicle-status');
     this.moneyEl = document.getElementById('money-value');
+    this.armorRowEl = document.getElementById('armor-badge');
+    this.armorFillEl = document.getElementById('armor-fill');
+    this.armorValueEl = document.getElementById('armor-value');
     this.objectiveHintEl = document.getElementById('objective-hint');
     this.healthFillEl = document.getElementById('health-fill');
     this.healthValueEl = document.getElementById('health-value');
@@ -1093,7 +1096,13 @@ export class HudController {
     this.errorScreen.classList.remove('hidden');
   }
 
-  updateStatus({ locationCode, vehicle, isDrifting, objectiveCode, health = 100, weaponLabel = null, money = null }) {
+  updateStatus({ locationCode, vehicle, isDrifting, objectiveCode, health = 100, weaponLabel = null, money = null, armor = null }) {
+    if (this.armorRowEl && armor !== null) {
+      const clampedArmor = Math.max(0, Math.min(100, Math.round(armor)));
+      this.armorRowEl.classList.toggle('hidden', clampedArmor <= 0);
+      if (this.armorValueEl) this.armorValueEl.textContent = String(clampedArmor);
+      if (this.armorFillEl) this.armorFillEl.style.width = `${clampedArmor}%`;
+    }
     if (this.moneyEl && money !== null) {
       const label = `R$ ${Math.max(0, Math.floor(money)).toLocaleString('pt-BR')}`;
       if (this.moneyEl.textContent !== label) this.moneyEl.textContent = label;

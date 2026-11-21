@@ -1,7 +1,7 @@
 // Armaria: onde fica, o que vende e as regras de compra. Lógica pura, sem DOM.
 
-import { WEAPONS, addAmmo, getWeaponDef } from '../combat/weapons.js';
-import { addWeapon, equipWeapon, getEquipped, hasWeapon } from '../combat/arsenal.js';
+import { WEAPONS, addAmmo, getWeaponDef } from '../combat/weapons.js?v=4';
+import { addWeapon, equipWeapon, getEquipped, hasWeapon } from '../combat/arsenal.js?v=2';
 
 export { GUN_SHOP_CODE, GUN_SHOP_NAME } from './shop-location.js';
 

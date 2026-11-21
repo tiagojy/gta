@@ -75,6 +75,7 @@ Basta trocar os textos e imagens dessa pasta para publicar sua própria aventura
   - **Joystick / Gamepad**: suporte completo em menus, diálogos e direção.
   - **Tela de toque (iOS/Android)**: analógico virtual a pé, volante horizontal com âncora relativa ao primeiro toque ao dirigir, além de HUD adaptativo para modo retrato e paisagem.
 - **Armas e Armaria**: pistola, submetralhadora e escopeta (teclas `1`–`3` ou roda do mouse trocam de arma, `R` recarrega). A **Armaria Bom Preço** (telhado vermelho no mapa) vende armas e munição no balcão (`Espaço`). O dinheiro vem de missões e dos NPCs abatidos; `F2` abre o console de cheats (`dinheiro`, `municao`, `vida`, `ajuda`).
+- **Itens, colete e som**: caixas de munição, kits médicos e coletes aparecem nas calçadas (some se ficar muito tempo parado); o colete absorve dano antes da vida e tem barra azul no HUD. Atirar assusta os pedestres, balas danificam carros (fumaça e explosão), há tremida de câmera, cápsulas no chão e sons gerados por código (`mudo` nos cheats liga/desliga). Os pedestres respondem de forma diferente conforme você atirou há pouco, está ferido, de colete ou rico.
 - **Progresso salvo no navegador**: missões desbloqueadas, inventário e posição são preservados entre recarregamentos.
 
 ---

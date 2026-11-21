@@ -22,7 +22,7 @@
   <link rel="shortcut icon" href="./story/favicon.svg">
   <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
   <title>Missão Vibe Coding — Curso em Vídeo</title>
-  <link rel="stylesheet" href="./styles/main.css?v=45">
+  <link rel="stylesheet" href="./styles/main.css?v=46">
 </head>
 <body>
   <div id="game-shell">
@@ -45,6 +45,10 @@
             <div class="hud-health-row" title="Vida do personagem">
               <div class="health-track"><div id="health-fill" class="health-fill"></div></div>
               <span id="health-value">100</span>
+            </div>
+            <div id="armor-badge" class="hud-health-row armor-row hidden" title="Colete">
+              <div class="health-track"><div id="armor-fill" class="health-fill"></div></div>
+              <span id="armor-value">0</span>
             </div>
             <div id="vehicle-health-badge" class="hud-health-row disabled" title="Integridade do veículo">
               <div class="health-track"><div id="vehicle-health-fill" class="health-fill"></div></div>
@@ -394,6 +398,6 @@
       });
     })();
   </script>
-  <script type="module" src="./src/main.js?v=82"></script>
+  <script type="module" src="./src/main.js?v=83"></script>
 </body>
 </html>

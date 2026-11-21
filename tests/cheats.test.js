@@ -9,13 +9,15 @@ import {
 } from '../src/core/cheats.js';
 
 function createApi() {
-  const calls = { money: 0, ammo: 0, heal: 0 };
+  const calls = { money: 0, ammo: 0, heal: 0, armor: 0, mute: 0 };
   return {
     calls,
     api: {
       addMoney: (n) => { calls.money += n; },
       addAmmo: (n) => { calls.ammo += n; },
-      healPlayer: () => { calls.heal += 1; }
+      healPlayer: () => { calls.heal += 1; },
+      fillArmor: () => { calls.armor += 1; },
+      toggleMute: () => { calls.mute += 1; return calls.mute % 2 === 1; }
     }
   };
 }
@@ -51,7 +53,7 @@ test('código desconhecido ou vazio não altera nada e devolve erro', () => {
   const { api, calls } = createApi();
   assert.equal(applyCheat('xpto', api).ok, false);
   assert.equal(applyCheat('   ', api).ok, false);
-  assert.deepEqual(calls, { money: 0, ammo: 0, heal: 0 });
+  assert.deepEqual(calls, { money: 0, ammo: 0, heal: 0, armor: 0, mute: 0 });
 });
 
 test('"ajuda" lista os códigos disponíveis', () => {
@@ -61,4 +63,22 @@ test('"ajuda" lista os códigos disponíveis', () => {
   for (const { code } of listCheatCodes()) {
     assert.ok(result.message.includes(code));
   }
+});
+
+test('código "colete" enche o colete', () => {
+  const { api, calls } = createApi();
+  assert.equal(applyCheat('Colete', api).ok, true);
+  assert.equal(calls.armor, 1);
+});
+
+test('código "mudo" alterna o som e informa o estado', () => {
+  const { api, calls } = createApi();
+  assert.match(applyCheat('mudo', api).message, /desligado/);
+  assert.match(applyCheat('mudo', api).message, /ligado/);
+  assert.equal(calls.mute, 2);
+});
+
+test('"municao" avisa quando a reserva já está cheia', () => {
+  const full = { addAmmo: () => 0, addMoney() {}, healPlayer() {}, fillArmor() {}, toggleMute() {} };
+  assert.match(applyCheat('municao', full).message, /cheia/);
 });

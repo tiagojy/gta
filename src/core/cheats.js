@@ -28,6 +28,17 @@ const CHEATS = {
       return added > 0 ? `Você ganhou ${added} balas de reserva.` : 'A reserva já está cheia.';
     },
   },
+  colete: {
+    description: 'colete cheio',
+    run: (api) => {
+      api.fillArmor();
+      return 'Colete no máximo.';
+    },
+  },
+  mudo: {
+    description: 'liga/desliga o som',
+    run: (api) => (api.toggleMute() ? 'Som desligado.' : 'Som ligado.'),
+  },
   vida: {
     description: 'vida cheia',
     run: (api) => {
