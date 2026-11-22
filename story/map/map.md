@@ -132,7 +132,7 @@ COM-25: Auto Peças Bom Preço
 COM-26: Borracharia Bom Preço
 COM-27: Eletrônica Bom Preço
 COM-28: Informática Bom Preço
-COM-29: Academia Bom Preço
+COM-29: Armaria Bom Preço
 COM-30: Clínica Bom Preço
 COM-31: Dentista Bom Preço
 COM-32: Veterinária Bom Preço

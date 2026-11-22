@@ -28,6 +28,8 @@ export class InputManager {
     this.prevExit = false;
     this.prevReload = false;
     this.prevLockKey = false;
+    this.prevDigits = new Set();
+    this.wheelDelta = 0;
     this.prevVehicleEnter = false;
     this.mouse = { clientX: 0, clientY: 0, lastMoveAt: -Infinity, down: false };
     this.pendingClick = null;
@@ -103,6 +105,12 @@ export class InputManager {
     window.addEventListener('contextmenu', (e) => {
       if (!isUiTarget(e.target)) e.preventDefault();
     });
+
+    // Roda do mouse troca de arma (Ctrl + roda continua sendo o zoom do navegador)
+    window.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || isUiTarget(e.target)) return;
+      this.wheelDelta += e.deltaY;
+    }, { passive: true });
   }
 
   #resetAnalog() {
@@ -385,6 +393,15 @@ export class InputManager {
     const lockKeyHeld = this.keys.has('KeyG');
     const lockNearestJustPressed = lockKeyHeld && !this.prevLockKey;
     this.prevLockKey = lockKeyHeld;
+    let weaponSlotJustPressed = null;
+    for (let digit = 1; digit <= 5; digit++) {
+      const held = this.keys.has(`Digit${digit}`);
+      if (held && !this.prevDigits.has(digit)) weaponSlotJustPressed = digit - 1;
+      if (held) this.prevDigits.add(digit);
+      else this.prevDigits.delete(digit);
+    }
+    const weaponCycle = Math.sign(this.wheelDelta);
+    this.wheelDelta = 0;
     const lockClick = this.pendingClick;
     this.pendingClick = null;
     const mouseAim = {
@@ -503,6 +520,8 @@ export class InputManager {
       firePressed,
       reloadJustPressed,
       mouseAim,
+      weaponSlotJustPressed,
+      weaponCycle,
       lockClick,
       lockNearestJustPressed,
       throttlePressed,

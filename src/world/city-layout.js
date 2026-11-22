@@ -1,3 +1,4 @@
+import { GUN_SHOP_CODE } from '../shop/shop-location.js';
 export const GRID_BLOCKS = 30;
 export const ROAD_WIDTH = 124;
 export const SIDEWALK_WIDTH = 26;
@@ -91,7 +92,7 @@ export function createBuildingWithInterior({
   const wallT = 14;
   const doorW = 46;
   const roofPalette = ROOF_PALETTES[type];
-  const roofColor = roofPalette[Math.abs(seed) % roofPalette.length];
+  const roofColor = code === GUN_SHOP_CODE ? '#7f1d1d' : roofPalette[Math.abs(seed) % roofPalette.length];
 
   const walls = [];
   let entrance;

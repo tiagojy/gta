@@ -1,3 +1,4 @@
+import { GUN_SHOP_CODE } from '../shop/shop-location.js?v=1';
 export class Minimap {
   constructor(canvas) {
     this.canvas = canvas;
@@ -104,7 +105,7 @@ export class Minimap {
             ctx.restore();
           }
         } else {
-          ctx.fillStyle = building.type === 'commerce' ? '#4f6d9a' : '#7c5c4e';
+          ctx.fillStyle = building.code === GUN_SHOP_CODE ? '#c0392b' : building.type === 'commerce' ? '#4f6d9a' : '#7c5c4e';
           ctx.fillRect(bx, by, bw, bh);
         }
       }

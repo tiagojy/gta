@@ -1,9 +1,9 @@
-import { CityMap } from '../world/city-map.js?v=30';
+import { CityMap } from '../world/city-map.js?v=31';
 import { RoadPathfinder } from '../world/pathfinding.js?v=2';
 import { TrafficManager } from '../world/traffic-manager.js?v=25';
 import { BoatManager } from '../world/boat-manager.js?v=17';
-import { InputManager } from '../input/input-manager.js?v=23';
-import { WebGLRenderer } from '../render/webgl-renderer.js?v=32';
+import { InputManager } from '../input/input-manager.js?v=24';
+import { WebGLRenderer } from '../render/webgl-renderer.js?v=34';
 import { isInWater, resolveCircleStaticObstacle, resolveEntityCollisions, resolveVehiclePairCollision } from '../physics/collision.js?v=11';
 import {
   applyPedestrianDamage,
@@ -24,31 +24,49 @@ import {
   updateVehicle,
   updateVehicleCriticalState
 } from '../physics/vehicle-physics.js?v=19';
-import { Minimap } from '../ui/minimap.js?v=28';
+import { Minimap } from '../ui/minimap.js?v=29';
 import { Inventory } from './inventory.js?v=20';
 import {
   addAmmo,
-  createWeaponState,
+  getWeaponDef,
   isReloading,
-  restoreWeaponState,
   startReload,
-  tryFire,
+  tryFireBullets,
   updateBullets,
   updateWeaponState
-} from '../combat/weapons.js?v=2';
+} from '../combat/weapons.js?v=4';
 import { rollPedestrianCash } from '../combat/cash-drops.js?v=1';
 
 const DEFAULT_MISSION_REWARD = 100;
 const LOCK_PICK_RADIUS = 24;
 const LOCK_MAX_RANGE = 600;
 const LOCK_CYCLE_RANGE = 520;
+const SHOP_COUNTER_REACH = 60;
+const VEHICLE_BULLET_FACTOR = 0.5; // dano da bala em veículo = dano da arma x este fator
+const PICKUP_CLEARANCE = 14; // folga mínima entre um item e paredes/objetos
 const WAYPOINT_REACHED_RADIUS = 76;
 const WAYPOINT_CANCEL_RADIUS = 60;
 const CASH_PICKUP_RADIUS = 30;
 const CASH_DROP_LIFETIME = 90;
-import { createSaveSnapshot, saveGameState } from './save-state.js?v=3';
-import { applyCheat } from './cheats.js?v=1';
+import { createSaveSnapshot, saveGameState } from './save-state.js?v=5';
+import { applyCheat } from './cheats.js?v=3';
 import { CheatConsole } from '../ui/cheat-console.js?v=1';
+import { ShopMenu } from '../ui/shop-menu.js?v=1';
+import { absorbDamage, sanitizeArmor } from '../combat/armor.js?v=1';
+import { applyPickupEffect, createPickupState, findPickupsInReach, removePickup, updatePickups } from '../combat/pickups.js?v=1';
+import { scareNearbyPedestrians, scarePedestrian } from '../combat/panic.js?v=1';
+import { spawnCasing, updateCasings } from '../combat/casings.js?v=1';
+import { SoundManager } from '../audio/sound-manager.js?v=1';
+import { pickChatLine } from '../story/chat-lines.js?v=1';
+import {
+  createArsenal,
+  cycleWeapon,
+  equipSlot,
+  getEquipped,
+  restoreArsenal,
+  serializeArsenal
+} from '../combat/arsenal.js?v=2';
+import { GUN_SHOP_CODE, GUN_SHOP_NAME, describeOffers, purchaseItem } from '../shop/shop-data.js?v=2';
 import { getPendingMissionAssetUrls, preloadMissionAssets } from '../story/story-loader.js';
 
 const PEDESTRIAN_CHAT_LINES = [
@@ -146,8 +164,23 @@ export class Engine {
 
     this.camera = { x: 0, y: 0 };
     this.money = 0;
-    this.weaponState = null;
+    this.arsenal = null;
+    this.shopCounter = undefined;
     this.lockedTarget = null;
+    this.armor = 0;
+    this.pickups = createPickupState();
+    this.casings = [];
+    this.combatClock = 0;
+    this.lastShotAt = -Infinity;
+    this.emptyClickCooldown = 0;
+    this.sound = new SoundManager();
+    this.sound.attachUnlock(window);
+    this.shopMenu = new ShopMenu({
+      container: document.getElementById('game-shell'),
+      onBuy: (itemId) => this.#buyShopItem(itemId),
+      onOpen: () => { this.paused = true; },
+      onClose: () => { this.paused = false; }
+    });
     this.cheatConsole = new CheatConsole({
       container: document.getElementById('game-shell'),
       onSubmit: (value) => this.#runCheat(value),
@@ -266,6 +299,8 @@ export class Engine {
   stop() {
     this.#persistSaveState();
     this.cheatConsole?.destroy();
+    this.shopMenu?.destroy();
+    this.sound?.destroy();
     this.hud.clearNpcSpeechBubbles?.();
     this.running = false;
     if (this.#onKeyDown) window.removeEventListener('keydown', this.#onKeyDown);
@@ -286,9 +321,11 @@ export class Engine {
       collectedExtraIds: [...this.collectedExtraIds],
       completedNpcPoints: this.completedNpcPoints,
       money: this.money,
-      weapon: this.weaponState
-        ? { id: this.weaponState.id, ammoInMag: this.weaponState.ammoInMag, ammoReserve: this.weaponState.ammoReserve }
+      armor: this.armor,
+      weapon: this.player.weapon
+        ? { id: this.player.weapon.id, ammoInMag: this.player.weapon.ammoInMag, ammoReserve: this.player.weapon.ammoReserve }
         : null,
+      arsenal: serializeArsenal(this.arsenal),
       player: {
         x: this.player.x,
         y: this.player.y,
@@ -384,8 +421,9 @@ export class Engine {
     this.resetMatch(mission.startLocation, initialObjective);
 
     this.money = Math.max(0, Math.floor(Number(savedState.money) || 0));
-    this.weaponState = restoreWeaponState(savedState.weapon);
-    this.player.weapon = this.weaponState;
+    this.armor = sanitizeArmor(savedState.armor);
+    this.arsenal = restoreArsenal(savedState.arsenal, savedState.weapon);
+    this.player.weapon = getEquipped(this.arsenal);
 
     this.inventory.clear();
     for (const slot of savedState.inventorySlots || []) {
@@ -644,6 +682,8 @@ export class Engine {
     this.smokeParticles = [];
     this.explosions = [];
     this.cashDrops = [];
+    this.pickups = createPickupState();
+    this.casings = [];
     this.waypoint = null;
     this.waypointRoutePoints = [];
     this.pendingGameOver = null;
@@ -659,8 +699,8 @@ export class Engine {
     this.player.speed = 0;
     this.player.walkPhase = 0;
     this.player.health = 100;
-    if (!this.weaponState) this.weaponState = createWeaponState('pistol', { reserve: 36 });
-    this.player.weapon = this.weaponState;
+    if (!this.arsenal) this.arsenal = createArsenal();
+    this.player.weapon = getEquipped(this.arsenal);
     this.lockedTarget = null;
     this.hudDisplayHealth = 100;
     this.wasInsideHospital = false;
@@ -774,7 +814,9 @@ export class Engine {
   applyDamage(amount, fatalReason = 'Você se deu mal!', { bypassResistance = false } = {}) {
     if (this.player.isDead || amount <= 0) return;
     const effectiveDamage = bypassResistance ? amount : Math.max(1, Math.round(amount * 0.55));
-    this.player.health = Math.max(0, this.player.health - effectiveDamage);
+    const absorbed = absorbDamage(this.armor, effectiveDamage);
+    this.armor = absorbed.armor;
+    this.player.health = Math.max(0, this.player.health - absorbed.healthDamage);
     this.hud.triggerDamageFlash();
     if (this.player.health <= 0) {
       this.triggerGameOver(fatalReason);
@@ -795,6 +837,7 @@ export class Engine {
 
   #finalizeGameOver(reason) {
     this.deathSequence = null;
+    this.armor = 0;
     this.player.isDead = true;
     this.player.health = 0;
     this.player.deathReason = reason;
@@ -926,7 +969,7 @@ export class Engine {
     let best = null;
     let bestDist = maxDist;
     for (const ped of peds) {
-      if (!ped || ped.isDead || ped.knockedDown) continue;
+      if (!ped || ped.isDead || ped.knockedDown || ped.state === 'downed') continue;
       const d = Math.hypot(x - ped.x, y - ped.y);
       if (d < bestDist) {
         bestDist = d;
@@ -1172,6 +1215,47 @@ export class Engine {
       this.waypointRoutePoints = this.pathfinder.findRouteToPoint(
         this.player.x, this.player.y, this.waypoint.x, this.waypoint.y
       );
+    }
+  }
+
+  // Ponto de calçada livre (fora de prédios, paredes, objetos e água) para um item nascer.
+  #isFreePickupPoint(x, y) {
+    if (this.cityMap.getSurfaceAt(x, y) !== 'sidewalk') return false;
+    const loc = this.cityMap.getLocationAt(x, y);
+    if (loc && (loc.type === 'house' || loc.type === 'commerce' || loc.type === 'hospital')) return false; // dentro de prédio
+    if (isInWater(x, y, this.cityMap)) return false;
+    for (const r of this.cityMap.getCollidersAround(x, y, 40)) {
+      if (x >= r.x - PICKUP_CLEARANCE && x <= r.x + r.w + PICKUP_CLEARANCE
+        && y >= r.y - PICKUP_CLEARANCE && y <= r.y + r.h + PICKUP_CLEARANCE) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Caixa de munição, kit médico e colete: nascem nas calçadas perto do jogador e somem com o tempo.
+  #updatePickups(dt) {
+    if (this.player.isDead) return;
+    updatePickups(this.pickups, dt, {
+      px: this.player.x,
+      py: this.player.y,
+      isValidPoint: (x, y) => this.#isFreePickupPoint(x, y)
+    });
+    if (this.pickups.items.length === 0) return;
+
+    const collector = this.player.inVehicleId
+      ? this.vehicles.find((v) => v.id === this.player.inVehicleId)
+      : this.player;
+    if (!collector) return;
+    for (const item of findPickupsInReach(this.pickups, collector.x, collector.y)) {
+      const result = applyPickupEffect(item.type, { arsenal: this.arsenal, health: this.player.health, armor: this.armor });
+      if (!result.consumed) continue;
+      this.player.health = result.health;
+      this.armor = result.armor;
+      removePickup(this.pickups, item);
+      this.hud.showToast(result.message);
+      this.sound.play('pickup');
+      if (item.type === 'medkit') this.hud.triggerHealFlash();
     }
   }
 
@@ -1538,9 +1622,11 @@ export class Engine {
         } else {
           this.player.walkPhase = 0;
         }
+        this.#handleWeaponSwitch(input);
+        const shopJustOpened = this.#updateShopInteraction(input);
         this.#updatePlayerAim(input);
         this.#handlePlayerWeaponInput(input);
-        if ((input.actionJustPressed || input.vehicleEnterJustPressed) && !this.#isNearInteriorStoryNpc()) {
+        if (!shopJustOpened && (input.actionJustPressed || input.vehicleEnterJustPressed) && !this.#isNearInteriorStoryNpc()) {
           const encounterNpc = input.actionJustPressed ? this.#findNearbyEncounterNpc() : null;
           if (encounterNpc && this.cutscene) {
             this.player.speed = 0;
@@ -1579,9 +1665,16 @@ export class Engine {
             if (ped) {
               ped.angle = Math.atan2(this.player.y - ped.y, this.player.x - ped.x);
               const pool = this.storyPackage?.npcLines?.length ? this.storyPackage.npcLines : PEDESTRIAN_CHAT_LINES;
-              const line = pool[Math.floor(Math.random() * pool.length)];
+              const { line, scared } = pickChatLine({
+                secondsSinceShot: this.combatClock - this.lastShotAt,
+                health: this.player.health,
+                armor: this.armor,
+                insideShop: this.player.insideLocationCode === GUN_SHOP_CODE,
+                money: this.money
+              }, pool);
               const initPos = this.#worldToScreen(ped.x, ped.y - 22);
               this.hud.showNpcSpeechBubble(ped, line, initPos);
+              if (scared) scarePedestrian(ped, this.player.x, this.player.y, 4);
             }
           }
         }
@@ -1814,6 +1907,7 @@ export class Engine {
     this.#updateExplosions(dt);
     this.#updateCombat(dt);
     this.#updateCashDrops(dt);
+    this.#updatePickups(dt);
     this.#updateWaypoint(dt);
     this.#updateTrashBins(dt, nearbyVehicles);
 
@@ -2143,7 +2237,73 @@ export class Engine {
       objectiveCode: objectiveHint,
       health: this.hudDisplayHealth,
       weaponLabel: currentVehicle ? null : this.#getWeaponHudLabel(),
-      money: this.money
+      money: this.money,
+      armor: this.armor
+    });
+  }
+
+  // Teclas 1-5 e roda do mouse trocam a arma da mão.
+  #handleWeaponSwitch(input) {
+    if (!this.arsenal || this.player.isDead) return;
+    let changed = null;
+    if (input.weaponSlotJustPressed !== null && input.weaponSlotJustPressed !== undefined) {
+      changed = equipSlot(this.arsenal, input.weaponSlotJustPressed);
+    }
+    if (input.weaponCycle) {
+      changed = cycleWeapon(this.arsenal, input.weaponCycle) || changed;
+    }
+    this.player.weapon = getEquipped(this.arsenal);
+    if (changed) {
+      this.hud.showToast(getWeaponDef(changed.id).name, 1200);
+      this.sound.play('switch');
+    }
+  }
+
+  #getShopCounter() {
+    if (this.shopCounter === undefined) {
+      const shop = this.cityMap.resolveLocationCode(GUN_SHOP_CODE);
+      this.shopCounter = shop?.interior?.props?.find((p) => p.kind === 'counter') || null;
+    }
+    return this.shopCounter;
+  }
+
+  #isNearShopCounter() {
+    if (this.player.inVehicleId || this.player.isDead) return false;
+    if (this.player.insideLocationCode !== GUN_SHOP_CODE) return false;
+    const counter = this.#getShopCounter();
+    if (!counter) return false;
+    const nearestX = Math.max(counter.x, Math.min(this.player.x, counter.x + counter.w));
+    const nearestY = Math.max(counter.y, Math.min(this.player.y, counter.y + counter.h));
+    return Math.hypot(this.player.x - nearestX, this.player.y - nearestY) < SHOP_COUNTER_REACH;
+  }
+
+  #updateShopInteraction(input) {
+    const near = this.#isNearShopCounter();
+    this.shopMenu.setPromptVisible(near);
+    if (near && input.actionJustPressed) {
+      this.shopMenu.open({
+        title: GUN_SHOP_NAME,
+        offers: describeOffers(this.arsenal, this.money),
+        money: this.money
+      });
+      return true;
+    }
+    return false;
+  }
+
+  #buyShopItem(itemId) {
+    const result = purchaseItem(itemId, this.arsenal, this.money);
+    if (result.ok) {
+      this.money = result.money;
+      this.player.weapon = getEquipped(this.arsenal);
+      this.sound.play('pickup');
+      this.#persistSaveState();
+    }
+    this.shopMenu.refresh({
+      offers: describeOffers(this.arsenal, this.money),
+      money: this.money,
+      message: result.message,
+      ok: result.ok
     });
   }
 
@@ -2156,8 +2316,10 @@ export class Engine {
   #runCheat(value) {
     const result = applyCheat(value, {
       addMoney: (n) => this.addMoney(n),
-      addAmmo: (n) => { if (this.weaponState) addAmmo(this.weaponState, n); },
-      healPlayer: () => { this.player.health = 100; }
+      addAmmo: (n) => (this.player.weapon ? addAmmo(this.player.weapon, n) : 0),
+      healPlayer: () => { this.player.health = 100; },
+      fillArmor: () => { this.armor = 100; },
+      toggleMute: () => this.sound.toggleMute()
     });
     if (result.ok) this.#persistSaveState();
     return result;
@@ -2244,26 +2406,51 @@ export class Engine {
     const weapon = this.player.weapon;
     if (!weapon) return null;
     if (isReloading(weapon)) return 'Recarregando...';
-    return `Pistola ${weapon.ammoInMag}/${weapon.ammoReserve}`;
+    return `${getWeaponDef(weapon.id).shortName} ${weapon.ammoInMag}/${weapon.ammoReserve}`;
   }
 
   #handlePlayerWeaponInput(input) {
     const weapon = this.player.weapon;
     if (!weapon || this.player.isDead) return;
 
-    if (input.reloadJustPressed) {
-      startReload(weapon);
+    if (input.reloadJustPressed && startReload(weapon)) {
+      this.sound.play('reload');
     }
     if (input.firePressed) {
-      const bullet = tryFire(weapon, this.player.x, this.player.y, this.player.angle);
-      if (bullet) {
-        this.bullets.push(bullet);
+      const wasReloading = isReloading(weapon);
+      const fired = tryFireBullets(weapon, this.player.x, this.player.y, this.player.angle);
+      if (fired.length > 0) {
+        for (const bullet of fired) {
+          this.bullets.push(bullet);
+        }
+        this.#onWeaponFired(weapon);
+      } else if (!wasReloading && isReloading(weapon)) {
+        this.sound.play('reload'); // pente vazio: recarga automática
+      } else if (!wasReloading && weapon.ammoInMag <= 0 && weapon.ammoReserve <= 0 && this.emptyClickCooldown <= 0) {
+        this.emptyClickCooldown = 0.35;
+        this.sound.play('empty');
       }
     }
   }
 
+  // Efeitos de um disparo: som, cápsula no chão, tremida de câmera e pedestres assustados.
+  #onWeaponFired(weapon) {
+    const def = getWeaponDef(weapon.id);
+    this.lastShotAt = this.combatClock;
+    this.sound.play(weapon.id);
+    spawnCasing(this.casings, this.player.x, this.player.y, this.player.angle, def.casingColor);
+    this.shakeTimer = Math.max(this.shakeTimer || 0, def.shake);
+    scareNearbyPedestrians(this.trafficManager?.pedestrians, this.player.x, this.player.y, def.noise);
+  }
+
   #updateCombat(dt) {
-    if (this.player.inVehicleId) this.lockedTarget = null;
+    this.combatClock += dt;
+    this.emptyClickCooldown = Math.max(0, this.emptyClickCooldown - dt);
+    updateCasings(this.casings, dt);
+    if (this.player.inVehicleId) {
+      this.lockedTarget = null;
+      this.shopMenu?.setPromptVisible(false);
+    }
     const weapon = this.player.weapon;
     if (weapon) {
       updateWeaponState(weapon, dt);
@@ -2301,8 +2488,16 @@ export class Engine {
         }
       } else {
         this.#spawnBulletSparks(ev.x, ev.y, ev.bullet.angle);
+        if (ev.type === 'vehicle') this.#damageVehicleFromBullet(ev.target, ev.bullet.damage);
       }
     }
+  }
+
+  // Bala em carro: tira vida; abaixo de 30% ele solta fumaça (e explode depois de um tempo), a 0 explode na hora.
+  #damageVehicleFromBullet(vehicle, bulletDamage) {
+    if (!vehicle || vehicle.destroyed) return;
+    vehicle.health = Math.max(0, (vehicle.health ?? 100) - bulletDamage * VEHICLE_BULLET_FACTOR);
+    if (vehicle.health <= 0) this.#triggerVehicleExplosion(vehicle);
   }
 
   #spawnBulletSparks(x, y, bulletAngle) {
@@ -2514,6 +2709,8 @@ export class Engine {
       skidMarks: this.skidMarks,
       bloodMarks: this.bloodMarks,
       cashDrops: this.cashDrops,
+      pickups: this.pickups.items,
+      casings: this.casings,
       bullets: this.bullets,
       lockTarget: this.lockedTarget,
       smokeParticles: this.smokeParticles,
@@ -2650,6 +2847,7 @@ export class Engine {
     }
 
     this.shakeTimer = 0.55;
+    this.sound.play('explosion', Math.max(0.15, 1 - Math.hypot(vehicle.x - this.player.x, vehicle.y - this.player.y) / 1600));
     this.explosions.push({
       x: vehicle.x,
       y: vehicle.y,

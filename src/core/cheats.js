@@ -24,9 +24,20 @@ const CHEATS = {
   municao: {
     description: `+${CHEAT_AMMO_AMOUNT} balas de reserva`,
     run: (api) => {
-      api.addAmmo(CHEAT_AMMO_AMOUNT);
-      return `Você ganhou ${CHEAT_AMMO_AMOUNT} balas de reserva.`;
+      const added = api.addAmmo(CHEAT_AMMO_AMOUNT) ?? CHEAT_AMMO_AMOUNT;
+      return added > 0 ? `Você ganhou ${added} balas de reserva.` : 'A reserva já está cheia.';
     },
+  },
+  colete: {
+    description: 'colete cheio',
+    run: (api) => {
+      api.fillArmor();
+      return 'Colete no máximo.';
+    },
+  },
+  mudo: {
+    description: 'liga/desliga o som',
+    run: (api) => (api.toggleMute() ? 'Som desligado.' : 'Som ligado.'),
   },
   vida: {
     description: 'vida cheia',

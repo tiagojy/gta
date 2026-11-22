@@ -138,3 +138,34 @@ test('tecla G fixa o alvo mais próximo uma vez por aperto', async () => {
   win.dispatch('keydown', { code: 'KeyG' });
   assert.equal(input.update(0.016).lockNearestJustPressed, true);
 });
+
+test('teclas 1 a 5 escolhem a arma uma vez por aperto', async () => {
+  const { win, input } = await createInput();
+  assert.equal(input.update(0.016).weaponSlotJustPressed, null);
+
+  win.dispatch('keydown', { code: 'Digit2' });
+  assert.equal(input.update(0.016).weaponSlotJustPressed, 1);
+  assert.equal(input.update(0.016).weaponSlotJustPressed, null);
+
+  win.dispatch('keyup', { code: 'Digit2' });
+  input.update(0.016);
+  win.dispatch('keydown', { code: 'Digit1' });
+  assert.equal(input.update(0.016).weaponSlotJustPressed, 0);
+});
+
+test('roda do mouse troca de arma: para baixo = próxima, para cima = anterior', async () => {
+  const { win, input } = await createInput();
+  win.dispatch('wheel', { deltaY: 100, target: canvasTarget });
+  assert.equal(input.update(0.016).weaponCycle, 1);
+  assert.equal(input.update(0.016).weaponCycle, 0);
+
+  win.dispatch('wheel', { deltaY: -120, target: canvasTarget });
+  assert.equal(input.update(0.016).weaponCycle, -1);
+});
+
+test('roda com Ctrl (zoom do navegador) ou sobre a interface não troca de arma', async () => {
+  const { win, input } = await createInput();
+  win.dispatch('wheel', { deltaY: 100, ctrlKey: true, target: canvasTarget });
+  win.dispatch('wheel', { deltaY: 100, target: uiTarget });
+  assert.equal(input.update(0.016).weaponCycle, 0);
+});

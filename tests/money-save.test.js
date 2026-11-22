@@ -92,3 +92,32 @@ test('missão aceita campo opcional "reward" numérico; sem ele fica nulo', () =
   const negative = original.replace(/^---\n/, '---\nreward: -5\n');
   assert.equal(parseMissionMarkdown(negative, file, cityMap).reward, null);
 });
+
+test('save guarda e restaura o arsenal completo; formatos inválidos viram nulo', () => {
+  const storage = createMemoryStorage();
+  const arsenal = {
+    equipped: 'smg',
+    owned: [
+      { id: 'pistol', ammoInMag: 5, ammoReserve: 30 },
+      { id: 'smg', ammoInMag: 12, ammoReserve: 90 },
+    ],
+  };
+  assert.ok(saveGameState(createSaveSnapshot({ storyKey: 'hist', arsenal, player: {} }), storage));
+  assert.deepEqual(loadGameState('hist', storage).arsenal, arsenal);
+
+  assert.equal(createSaveSnapshot({ arsenal: { owned: [] }, player: {} }).arsenal, null);
+  assert.equal(createSaveSnapshot({ arsenal: 'xx', player: {} }).arsenal, null);
+});
+
+test('save guarda o colete e corrige valores inválidos; save antigo vira colete 0', () => {
+  const storage = createMemoryStorage();
+  assert.ok(saveGameState(createSaveSnapshot({ storyKey: 'hist', armor: 64, player: {} }), storage));
+  assert.equal(loadGameState('hist', storage).armor, 64);
+
+  assert.equal(createSaveSnapshot({ armor: 999, player: {} }).armor, 100);
+  assert.equal(createSaveSnapshot({ armor: -3, player: {} }).armor, 0);
+  assert.equal(createSaveSnapshot({ armor: 'x', player: {} }).armor, 0);
+
+  storage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ version: 1, storyKey: 'old', currentMissionIndex: 0, unlockedMissionIndices: [0], player: { x: 0, y: 0, angle: 0, health: 100 } }));
+  assert.equal(loadGameState('old', storage).armor, 0);
+});

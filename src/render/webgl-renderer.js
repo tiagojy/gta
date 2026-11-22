@@ -263,7 +263,7 @@ export class WebGLRenderer {
     this.#pushQuad(x - 4.5, y - 2, 9, 9, 0, 'disc', [0.22, 0.14, 0.08, 1]);
   }
 
-  renderFrame({ camera, cityMap, vehicles, boats = [], trashBins = [], pedestrians = [], player, skidMarks, bloodMarks = [], cashDrops = [], bullets = [], lockTarget = null, smokeParticles = [], explosions = [], worldCollectibles = [], objectivePoint, objectiveNpcPoint, completedNpcPoints = [], encounterLocations = null, emitNpcWaves = false, time }) {
+  renderFrame({ camera, cityMap, vehicles, boats = [], trashBins = [], pedestrians = [], player, skidMarks, bloodMarks = [], cashDrops = [], pickups = [], casings = [], bullets = [], lockTarget = null, smokeParticles = [], explosions = [], worldCollectibles = [], objectivePoint, objectiveNpcPoint, completedNpcPoints = [], encounterLocations = null, emitNpcWaves = false, time }) {
     const gl = this.gl;
     this.quadCount = 0;
 
@@ -417,6 +417,35 @@ export class WebGLRenderer {
       this.#pushQuad(drop.x - 2, drop.y - 2, 4, 4, 0.2, 'solid', [0.88, 1, 0.82, 1]);
     }
 
+    // Itens no chão: caixa de munição, kit médico e colete
+    for (const item of pickups) {
+      if (item.x < minX || item.x > maxX || item.y < minY || item.y > maxY) continue;
+      const pulse = 1 + 0.1 * Math.sin((time || 0) * 4 + item.id);
+      const fade = item.age > 135 ? 0.45 + 0.55 * Math.abs(Math.sin((time || 0) * 8)) : 1; // pisca antes de sumir
+      const base = item.type === 'ammo' ? [0.93, 0.74, 0.2] : item.type === 'medkit' ? [0.96, 0.96, 0.96] : [0.24, 0.62, 0.96];
+      this.#pushQuad(item.x - 15 * pulse, item.y - 15 * pulse, 30 * pulse, 30 * pulse, 0, 'circle', [base[0], base[1], base[2], 0.22 * fade]);
+      this.#pushQuad(item.x - 9, item.y - 9, 18, 18, 0, 'solid', [0.06, 0.07, 0.1, fade]);
+      this.#pushQuad(item.x - 8, item.y - 8, 16, 16, 0, 'solid', [base[0], base[1], base[2], fade]);
+      if (item.type === 'ammo') {
+        for (let k = -1; k <= 1; k++) {
+          this.#pushQuad(item.x + k * 4 - 1, item.y - 4, 2.2, 8, 0, 'solid', [0.22, 0.14, 0.04, fade]);
+        }
+      } else if (item.type === 'medkit') {
+        this.#pushQuad(item.x - 1.8, item.y - 5.5, 3.6, 11, 0, 'solid', [0.85, 0.12, 0.12, fade]);
+        this.#pushQuad(item.x - 5.5, item.y - 1.8, 11, 3.6, 0, 'solid', [0.85, 0.12, 0.12, fade]);
+      } else {
+        this.#pushQuad(item.x - 4.5, item.y - 5, 9, 9, 0, 'solid', [0.9, 0.96, 1, fade]);
+        this.#pushQuad(item.x - 3, item.y + 3, 6, 3, 0, 'solid', [0.9, 0.96, 1, fade]);
+        this.#pushQuad(item.x - 1, item.y - 5, 2, 4, 0, 'solid', [0.24, 0.62, 0.96, fade]);
+      }
+    }
+
+    // Cápsulas de bala no chão (somem devagar no último segundo)
+    for (const c of casings) {
+      if (c.x < minX || c.x > maxX || c.y < minY || c.y > maxY) continue;
+      const alpha = Math.min(1, (4 - c.age) / 1);
+      this.#pushQuad(c.x - 2, c.y - 1, 4, 2, c.angle, 'solid', [c.color[0], c.color[1], c.color[2], alpha]);
+    }
     // Mobiliário de praça, obstáculos e edificações
     for (const block of visibleBlocks) {
       if (block.plaza) {
@@ -900,10 +929,11 @@ export class WebGLRenderer {
 
       // Pistola na mão direita + clarão do disparo
       if (!ridingMoto && player.weapon && !player.isDead) {
-        drawLimb(16, 6, 11, 4, [0.1, 0.11, 0.14]);
+        const gunLen = player.weapon.visualLength || 11;
+        drawLimb(10.5 + gunLen * 0.5, 6, gunLen, gunLen > 12 ? 5 : 4, [0.1, 0.11, 0.14]);
         drawLimb(11, 6, 5, 5, [0.92, 0.72, 0.52]);
         if (player.weapon.flashTimer > 0) {
-          drawLimb(25, 6, 11, 11, [1, 0.92, 0.55]);
+          drawLimb(10.5 + gunLen + 3, 6, 11, 11, [1, 0.92, 0.55]);
         }
       }
     }

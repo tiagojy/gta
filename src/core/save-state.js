@@ -38,6 +38,18 @@ function sanitizeWeapon(weapon) {
   };
 }
 
+function sanitizeArsenal(arsenal) {
+  if (!arsenal || typeof arsenal !== 'object' || !Array.isArray(arsenal.owned)) return null;
+  const owned = arsenal.owned.map(sanitizeWeapon).filter(Boolean);
+  if (owned.length === 0) return null;
+  return { equipped: String(arsenal.equipped || owned[0].id), owned };
+}
+
+function sanitizeArmorValue(value) {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+}
+
 function normalizeUnlockedMissionIndices(indices, fallbackMaxIndex = 0) {
   const set = new Set([0]);
   if (Array.isArray(indices)) {
@@ -63,7 +75,9 @@ export function createSaveSnapshot({
   collectedExtraIds = [],
   completedNpcPoints = [],
   money = 0,
+  armor = 0,
   weapon = null,
+  arsenal = null,
   player = {},
 } = {}) {
   const health = Number.isFinite(player.health) ? Math.max(1, Math.min(100, player.health)) : 100;
@@ -78,7 +92,9 @@ export function createSaveSnapshot({
   return {
     version: 1,
     money: sanitizeMoney(money),
+    armor: sanitizeArmorValue(armor),
     weapon: sanitizeWeapon(weapon),
+    arsenal: sanitizeArsenal(arsenal),
     storyKey: String(storyKey || 'default'),
     currentMissionIndex: missionIdx,
     unlockedMissionIndices: unlocked,
@@ -139,7 +155,9 @@ export function loadGameState(storyKey = 'default', storage = getDefaultStorage(
     return {
       ...parsed,
       money: sanitizeMoney(parsed.money),
+      armor: sanitizeArmorValue(parsed.armor),
       weapon: sanitizeWeapon(parsed.weapon),
+      arsenal: sanitizeArsenal(parsed.arsenal),
       currentMissionIndex,
       unlockedMissionIndices,
       freeRoamMode,

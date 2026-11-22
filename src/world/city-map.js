@@ -7,7 +7,7 @@ import {
   createBuildingWithInterior,
   formatCode,
   hashBlock
-} from './city-layout.js?v=21';
+} from './city-layout.js?v=22';
 
 export const CHUNK_BLOCK_SIZE = 3;
 
